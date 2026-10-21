@@ -98,6 +98,7 @@ th{font-size:12px;color:var(--muted);font-weight:500;background:var(--bg);positi
 th.grp{border-left:1px solid var(--line)}
 td.num{font-family:var(--f-num);font-size:16px;font-variant-numeric:tabular-nums}
 td.final{font-weight:700;color:var(--accent)}
+td.final.fail{color:var(--fail);background:var(--fail-soft)}
 td.l{text-align:left}
 td.miss{color:var(--muted)}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
@@ -436,7 +437,7 @@ function renderSummary(c){
     const td = v => `<td class="num ${v==null?'miss':''}">${fmt(v)}</td>`;
     return `<tr><td class="num">${esc(r.sid)}</td><td class="l">${esc(r.name)}</td><td>${sexSwitch(c.rows.indexOf(r), r.g)}</td>
       ${td(s.ap)}${td(s.bp)}${td(s.t)}<td class="num grp">${fmt(s.reg)}</td>
-      <td class="num">${s.absM?'缺考':fmt(s.am)}</td><td class="num">${s.absF?'缺考':fmt(s.bf)}</td><td class="num final">${fmt(s.sem)}</td></tr>`;
+      <td class="num">${s.absM?'缺考':fmt(s.am)}</td><td class="num">${s.absF?'缺考':fmt(s.bf)}</td><td class="num final${s.sem!=null&&s.sem<60?' fail':''}">${fmt(s.sem)}</td></tr>`;
   }).join('');
   return `<div class="eventhead"><div><h2>${S.label}｜總表${pdfTools(curEvent())}</h2><p>學期 = 期中 ${w.mid}% + 期末 ${w.fin}% + 平時 ${w.reg}%；平時 = ${S.A.name}平時 ${w.rJump}% + ${S.B.name}平時 ${w.rRun}% + 表現 ${w.rTeach}%</p></div>
     <span class="progress">學期成績完成 ${done} / ${c.rows.length} 人</span></div>

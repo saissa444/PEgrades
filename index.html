@@ -71,6 +71,20 @@ main{padding-block:16px 48px;display:flex;flex-direction:column;gap:14px}
 .panel h2{font-size:15px;margin:0 0 10px}
 .eventhead{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between}
 .eventhead h2{font-size:17px;margin:0;display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px}
+.logbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.logbar select{flex:1 1 200px;min-width:0}
+.logform{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px 12px;align-items:center}
+.logform label{font-size:13px;color:var(--muted)}
+.logform input,.logform textarea,.lrow input{font:inherit;font-size:15px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);padding:6px 9px;min-width:0;width:100%}
+.logform textarea{min-height:76px;resize:vertical;line-height:1.5}
+.logform input[type=date]{width:auto}
+.lrow{display:grid;grid-template-columns:minmax(0,1.1fr) 76px minmax(0,2fr);gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--line)}
+.lrow:first-child{border-top:none}
+.lrow.hd{font-size:12px;color:var(--muted);background:var(--bg);padding-block:6px}
+.lrow input.sc{font-family:var(--f-num);font-size:18px;text-align:center;padding:4px}
+.lrow input.nt{font-size:14px}
+.logstats{font-size:13px;color:var(--muted)}
+@media (max-width:520px){ .logform{grid-template-columns:1fr} .lrow{grid-template-columns:minmax(0,1fr) 64px} .lrow .nt{grid-column:1/-1} .lrow.hd .hnt{display:none} }
 .pdfbtn{font-size:13px;font-weight:700;padding:4px 10px;border-color:var(--fail);color:var(--fail);letter-spacing:.04em}
 .pdfbtn:disabled{opacity:.5;cursor:wait}
 .maskopt{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:400;color:var(--muted);cursor:pointer}
@@ -227,6 +241,7 @@ function events(sem){
     { ...S.B, id:f.bp, label:S.B.name+'・平時', part:'平時成績' },
     { ...S.B, id:f.bf, label:S.B.name+'・期末', part:'期末成績', absent:f.absF },
     { id:f.t, label:'平時表現', kind:'teach', unit:'分', part:'平時成績' },
+    { id:'log', label:'上課紀錄', kind:'log' },
     { id:'sum', label:'總表', kind:'sum' },
     { id:'set', label:'配分設定', kind:'set' },
   ];
@@ -257,6 +272,8 @@ const state = {
   current: DEMO_KEY,
   tab: 'jp',
   sem: '1',
+  lessons: {},      // id -> {id, cls, sem, date, topic, quiz, rec:{rowKey:{s,n}}, createdAt, updatedAt}
+  lessonId: null,
   ws: mergeWs(null),
   get w(){ return this.ws[this.sem]; },
   store: null,       // 'db' | 'local' | null
@@ -276,6 +293,8 @@ let db=null, uid=null, saveTimer=null, dirty=new Set();
 const LS='pe-grades-v1';
 function lsGet(){ try{ return JSON.parse(localStorage.getItem(LS)||'null'); }catch(e){ return null; } }
 function lsSet(obj){ try{ localStorage.setItem(LS, JSON.stringify(obj)); return true; }catch(e){ return false; } }
+function storableLessons(){ const o={}; for(const k in state.lessons) if(state.lessons[k].cls!==DEMO_KEY) o[k]=state.lessons[k]; return o; }
+function lsSave(){ return lsSet({ classes: storableClasses(), lessons: storableLessons(), ws: state.ws, current: state.current, sem: state.sem }); }
 function setStatus(t){ document.getElementById('status').textContent = t; }
 
 function storableClasses(){ const o={}; for(const k in state.classes) if(!state.classes[k].demo) o[k]=state.classes[k]; return o; }
@@ -289,11 +308,12 @@ function scheduleSave(key){
 }
 async function flush(){
   const keys=[...dirty]; dirty.clear();
-  lsSet({ classes: storableClasses(), ws: state.ws, current: state.current, sem: state.sem });
+  lsSave();
   if (db && uid){
     try{
       for (const k of keys){
         if (k==='__settings') await db.collection('data/users/'+uid).doc('settings').set({ ws: state.ws });
+        else if (k.startsWith('l_')){ if (state.lessons[k]) await db.collection('data/users/'+uid).doc(k).set(state.lessons[k]); else await db.collection('data/users/'+uid).doc(k).delete(); }
         else if (state.classes[k]) await db.collection('data/users/'+uid).doc(k).set(state.classes[k]);
       }
       setStatus('已儲存到你的帳號 ' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));
@@ -304,14 +324,17 @@ async function flush(){
 }
 async function removeClass(key){
   delete state.classes[key];
-  lsSet({ classes: storableClasses(), ws: state.ws });
-  if (db && uid){ try{ await db.collection('data/users/'+uid).doc(key).delete(); }catch(e){} }
+  const gone = Object.keys(state.lessons).filter(k=>state.lessons[k].cls===key);
+  gone.forEach(k=>delete state.lessons[k]);
+  lsSave();
+  if (db && uid){ try{ await db.collection('data/users/'+uid).doc(key).delete(); for (const k of gone) await db.collection('data/users/'+uid).doc(k).delete(); }catch(e){} }
 }
 
 async function initStore(){
   const local = lsGet();
   if (local){
     Object.assign(state.classes, local.classes||{});
+    Object.assign(state.lessons, local.lessons||{});
     if (local.ws) state.ws = mergeWs(local.ws);
     else if (local.w) state.ws['1'] = { ...DEFAULT_WS['1'], ...local.w };
     if (local.sem && SEMS[local.sem]) { state.sem = local.sem; state.tab = events()[0].id; }
@@ -331,12 +354,14 @@ async function initStore(){
     snap.docs.forEach(doc=>{
       const v = doc.data(); if(!v) return;
       if (doc.id==='settings'){ if(v.ws) state.ws=mergeWs(v.ws); else if(v.w) state.ws['1']={...DEFAULT_WS['1'],...v.w}; return; }
+      if (doc.id.startsWith('l_')){ const m=state.lessons[doc.id]; if (!m || (v.updatedAt||0) >= (m.updatedAt||0)) state.lessons[doc.id]=v; return; }
       const mine = state.classes[doc.id];
       if (!mine || (v.updatedAt||0) >= (mine.updatedAt||0)) state.classes[doc.id]=v;
       remoteCount++;
     });
     // 本機有、雲端沒有 → 上傳
     for (const k in storableClasses()){ if(!snap.docs.some(x=>x.id===k)) dirty.add(k); }
+    for (const k in storableLessons()){ if(!snap.docs.some(x=>x.id===k)) dirty.add(k); }
     if (dirty.size) flush();
     pickDefaultClass(state.current);
     renderAll();
@@ -363,7 +388,7 @@ function renderClassSel(){
   sel.innerHTML = keys.map(k=>`<option value="${esc(k)}" ${k===state.current?'selected':''}>${esc(state.classes[k].cls)}（${state.classes[k].rows.length}人）</option>`).join('');
 }
 function filled(ev, r){
-  if (ev.kind==='sum' || ev.kind==='set') return false;
+  if (ev.kind==='sum' || ev.kind==='set' || ev.kind==='log') return false;
   if (ev.kind==='teach') return num(r[ev.id])!=null;
   if (ev.absent && r[ev.absent]) return true;
   return num(r[TIMED[ev.kind] ? ev.id+'M' : ev.id])!=null;
@@ -373,7 +398,7 @@ function renderTabs(){
   document.querySelectorAll('[data-sem]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.sem===state.sem));
   $('#tabs').innerHTML = events().map(ev=>{
     let extra='';
-    if (ev.kind!=='sum' && ev.kind!=='set'){
+    if (ev.kind!=='sum' && ev.kind!=='set' && ev.kind!=='log'){
       const n = c.rows.filter(r=>filled(ev,r)).length;
       extra = `<span class="pct">${n}/${c.rows.length}</span>`;
     }
@@ -405,6 +430,7 @@ function renderMain(){
   if (c.demo) html += `<div class="banner">目前顯示的是<b>範例資料</b>（不會儲存）。按班級右邊的「名冊」選學校下載的成績繳交表 .xlsx 就能開始登錄。</div>`;
   if (ev.kind==='sum') html += renderSummary(c);
   else if (ev.kind==='set') html += renderSettings(c);
+  else if (ev.kind==='log') html += renderLog(c);
   else html += renderEntry(c, ev);
   m.innerHTML = html;
 }
@@ -503,7 +529,7 @@ document.addEventListener('click', e=>{
   if (sb){ if (sb.dataset.sem!==state.sem){
       const idx = events().findIndex(x=>x.id===state.tab);
       state.sem = sb.dataset.sem; state.tab = events()[Math.max(0,idx)].id;
-      renderTabs(); renderMain(); lsSet({classes:storableClasses(), ws:state.ws, current:state.current, sem:state.sem});
+      renderTabs(); renderMain(); lsSave();
       toast('已切換到'+SEMS[state.sem].label+'：'+SEMS[state.sem].A.name+'・'+SEMS[state.sem].B.name); }
     return; }
   const tab = e.target.closest('.tab');
@@ -562,7 +588,7 @@ document.addEventListener('change', e=>{
     t.closest('.row').querySelectorAll('input[type=text]').forEach(x=>x.disabled=t.checked);
     refreshRow(i); scheduleSave(state.current);
   }
-  if (t.id==='classSel'){ state.current=t.value; renderTabs(); renderMain(); lsSet({classes:storableClasses(), ws:state.ws, current:state.current, sem:state.sem}); }
+  if (t.id==='classSel'){ state.current=t.value; renderTabs(); renderMain(); lsSave(); }
 });
 // Enter：跳到下一位同學
 document.addEventListener('keydown', e=>{
@@ -652,6 +678,113 @@ $('#exportBtn').addEventListener('click', async ()=>{
     toast('匯出失敗：'+(err&&err.message||'請再試一次'));
   }
 });
+
+/* ---------- 上課紀錄 ---------- */
+const NOTE_OPTS = ['認真投入','表現良好','進步很多','需加強','體力待加強','動作需修正','遲到','早退','請假','公假','缺席','身體不適見習'];
+function rowKey(r){ return String(r.reg || r.sid || r.name); }
+function todayStr(){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+function classLessons(c){
+  return Object.values(state.lessons).filter(l=>l.cls===c.key && l.sem===state.sem)
+    .sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.createdAt||0)-(a.createdAt||0));
+}
+function curLesson(c){ const ls=classLessons(c); return ls.find(l=>l.id===state.lessonId) || ls[0] || null; }
+function saveLesson(l){
+  l.updatedAt=Date.now();
+  if (l.cls===DEMO_KEY){ setStatus('範例資料不會儲存'); return; }
+  dirty.add(l.id); setStatus('儲存中…'); clearTimeout(saveTimer); saveTimer=setTimeout(flush,700);
+}
+function lessonLabel(l, i, n){
+  const [y,m,d]=(l.date||'').split('-'); const dt = m ? `${+m}/${+d}` : '未填日期';
+  const t = (l.topic||'').split('\n')[0].slice(0,18);
+  return `${dt}（第 ${n-i} 次）${t?'・'+t:''}`;
+}
+function renderLog(c){
+  const S=SEMS[state.sem], ls=classLessons(c), l=curLesson(c);
+  let h = `<div class="eventhead"><div><h2>${S.label}｜上課紀錄</h2><p>記錄每次上課的進度、隨堂測驗成績與每位同學的學習狀況</p></div>
+    <button class="primary" id="lsNew">＋ 新增上課紀錄</button></div>`;
+  if (!l){
+    return h + `<div class="panel empty">這個班級的${S.label}還沒有上課紀錄。按「＋ 新增上課紀錄」開始記錄今天的課。</div>`;
+  }
+  state.lessonId = l.id;
+  const scored = c.rows.map(r=>num((l.rec[rowKey(r)]||{}).s)).filter(v=>v!=null);
+  const noted = c.rows.filter(r=>((l.rec[rowKey(r)]||{}).n||'').trim()).length;
+  const avg = scored.length ? round2(scored.reduce((a,b)=>a+b,0)/scored.length) : null;
+  h += `<div class="logbar"><select id="lsSel" aria-label="選擇上課紀錄">${ls.map((x,i)=>`<option value="${esc(x.id)}" ${x.id===l.id?'selected':''}>${esc(lessonLabel(x,i,ls.length))}</option>`).join('')}</select>
+    <span class="logstats" id="lsStats">${ls.length} 次上課・本次測驗 ${scored.length} 人${avg!=null?'，平均 '+fmt(avg)+' 分':''}・狀況 ${noted} 人</span></div>`;
+  h += `<div class="panel logform">
+    <label for="lsDate">上課日期</label><input type="date" id="lsDate" value="${esc(l.date)}">
+    <label for="lsTopic">進度內容</label><textarea id="lsTopic" placeholder="例如：1200m 配速練習 3 趟、核心肌群訓練、講解立定跳遠擺臂技巧">${esc(l.topic)}</textarea>
+    <label for="lsQuiz">隨堂測驗</label><input type="text" id="lsQuiz" value="${esc(l.quiz)}" placeholder="測驗項目（沒有可留白），例如：仰臥起坐 1 分鐘">
+  </div>`;
+  h += `<datalist id="noteOpts">${NOTE_OPTS.map(o=>`<option value="${o}"></option>`).join('')}</datalist>`;
+  h += `<div class="list"><div class="lrow hd"><span>學號・姓名</span><span>測驗成績</span><span class="hnt">學習狀況</span></div>`;
+  c.rows.forEach((r,i)=>{
+    const rec = l.rec[rowKey(r)] || {};
+    h += `<div class="lrow"><div class="who"><span class="sid">${esc(r.sid)}</span><span class="name">${esc(r.name)}</span></div>
+      <input type="text" inputmode="decimal" class="sc" id="ls-s-${i}" data-ln="s" data-i="${i}" value="${esc(rec.s)}" aria-label="${esc(r.name)} 隨堂測驗成績" placeholder="—">
+      <input type="text" class="nt" id="ls-n-${i}" data-ln="n" data-i="${i}" value="${esc(rec.n)}" list="noteOpts" aria-label="${esc(r.name)} 學習狀況" placeholder="學習狀況（可點選或自行輸入）"></div>`;
+  });
+  h += `</div><div class="confirm" id="lsDelBox"><button class="danger" id="lsDelAsk">刪除這次上課紀錄</button></div>`;
+  return h;
+}
+function updateLogStats(){
+  const c=cur(), l=curLesson(c), el=document.getElementById('lsStats'); if(!l||!el) return;
+  const ls=classLessons(c);
+  const scored = c.rows.map(r=>num((l.rec[rowKey(r)]||{}).s)).filter(v=>v!=null);
+  const noted = c.rows.filter(r=>((l.rec[rowKey(r)]||{}).n||'').trim()).length;
+  const avg = scored.length ? round2(scored.reduce((a,b)=>a+b,0)/scored.length) : null;
+  el.textContent = `${ls.length} 次上課・本次測驗 ${scored.length} 人${avg!=null?'，平均 '+fmt(avg)+' 分':''}・狀況 ${noted} 人`;
+}
+document.addEventListener('click', e=>{
+  const c=cur();
+  if (e.target.id==='lsNew'){
+    const id='l_'+c.key+'_'+Date.now().toString(36);
+    state.lessons[id]={ id, cls:c.key, sem:state.sem, date:todayStr(), topic:'', quiz:'', rec:{}, createdAt:Date.now(), updatedAt:Date.now() };
+    state.lessonId=id; saveLesson(state.lessons[id]); renderMain();
+    const t=document.getElementById('lsTopic'); t&&t.focus();
+    toast('已新增今天的上課紀錄'); return;
+  }
+  if (e.target.id==='lsDelAsk'){ $('#lsDelBox').innerHTML='確定刪除這次上課紀錄？<button class="danger" id="lsDelYes">刪除</button><button id="lsDelNo">取消</button>'; return; }
+  if (e.target.id==='lsDelNo'){ renderMain(); return; }
+  if (e.target.id==='lsDelYes'){
+    const l=curLesson(c); if(!l) return;
+    delete state.lessons[l.id]; state.lessonId=null;
+    if (l.cls!==DEMO_KEY){ dirty.add(l.id); setStatus('儲存中…'); clearTimeout(saveTimer); saveTimer=setTimeout(flush,300); }
+    renderMain(); toast('已刪除上課紀錄'); return;
+  }
+});
+document.addEventListener('input', e=>{
+  const t=e.target, c=cur(), l=(t.id==='lsTopic'||t.id==='lsQuiz'||t.id==='lsDate'||t.dataset.ln) ? curLesson(c) : null;
+  if (!l) return;
+  if (t.id==='lsTopic') l.topic=t.value;
+  else if (t.id==='lsQuiz') l.quiz=t.value;
+  else if (t.id==='lsDate') l.date=t.value;
+  else {
+    const r=c.rows[+t.dataset.i], k=rowKey(r);
+    let v=t.value;
+    if (t.dataset.ln==='s'){ v=v.replace(/[^\d.]/g,''); if(v!==t.value) t.value=v; }
+    l.rec[k] = { ...(l.rec[k]||{}), [t.dataset.ln]: v };
+    updateLogStats();
+  }
+  saveLesson(l);
+});
+document.addEventListener('change', e=>{
+  if (e.target.id==='lsSel'){ state.lessonId=e.target.value; renderMain(); }
+  if (e.target.id==='lsDate'){ renderMain(); }
+});
+document.addEventListener('keydown', e=>{
+  if (e.key!=='Enter' || !e.target.dataset || !e.target.dataset.ln) return;
+  e.preventDefault();
+  const i=+e.target.dataset.i, nx=document.getElementById(`ls-${e.target.dataset.ln}-${i+1}`);
+  if (nx){ nx.focus(); nx.select&&nx.select(); nx.scrollIntoView({block:'center',behavior:'smooth'}); }
+});
+// 範例班的示範紀錄
+(function(){
+  const id='l_demo_1';
+  state.lessons[id]={ id, cls:DEMO_KEY, sem:'1', date:todayStr(), topic:'1200m 配速練習 3 趟（每趟 400m）\n立定跳遠擺臂與落地緩衝教學',
+    quiz:'1 分鐘仰臥起坐', createdAt:1, updatedAt:1,
+    rec:{ '1150000001':{s:'45',n:'認真投入'}, '1150000002':{s:'38',n:'體力待加強'}, '1150000003':{s:'41',n:'進步很多'}, '1150000004':{n:'請假'}, '1150000005':{s:'36',n:''} } };
+})();
 
 /* ---------- 公布成績 PDF ---------- */
 let maskNames = false;
@@ -770,7 +903,7 @@ async function saveFile(name, blob){
 /* ---------- 備份／還原（手機⇄電腦搬資料） ---------- */
 document.addEventListener('click', async e=>{
   if (e.target.id!=='bkOut') return;
-  const data = { app:'pe-grades', version:1, exportedAt:new Date().toISOString(), classes:storableClasses(), ws:state.ws };
+  const data = { app:'pe-grades', version:2, exportedAt:new Date().toISOString(), classes:storableClasses(), lessons:storableLessons(), ws:state.ws };
   if (!Object.keys(data.classes).length){ toast('還沒有班級資料可以備份'); return; }
   const d=new Date(), p=n=>String(n).padStart(2,'0');
   try{
@@ -792,9 +925,14 @@ document.addEventListener('change', async e=>{
       else if ((inc.updatedAt||0) > (mine.updatedAt||0)){ state.classes[k]=inc; updated++; dirty.add(k); }
       else kept++;
     }
+    let lAdded=0;
+    for (const k in (data.lessons||{})){
+      const inc=data.lessons[k], mine=state.lessons[k];
+      if (!mine || (inc.updatedAt||0) > (mine.updatedAt||0)){ state.lessons[k]=inc; dirty.add(k); lAdded++; }
+    }
     if (data.ws){ state.ws = mergeWs(data.ws); dirty.add('__settings'); }
     flush(); pickDefaultClass(state.current); renderAll();
-    toast(`已還原：新增 ${added} 班、更新 ${updated} 班` + (kept?`，${kept} 班這台較新已保留`:''));
+    toast(`已還原：新增 ${added} 班、更新 ${updated} 班` + (lAdded?`、上課紀錄 ${lAdded} 筆`:'') + (kept?`，${kept} 班這台較新已保留`:''));
   }catch(err){ toast('這不是體能成績的備份檔'); }
 });
 

@@ -1,0 +1,16 @@
+{
+  "name": "體能成績登錄",
+  "short_name": "體能成績",
+  "description": "立定跳遠、1200m、折返跑、3000m 成績自動換算與匯出成績繳交表",
+  "lang": "zh-Hant",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F3F5F7",
+  "theme_color": "#1F4FB0",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

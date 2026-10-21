@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1F4FB0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="體能成績">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px;-webkit-text-size-adjust:100%}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>體能成績登錄</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: sticky header + event tabs, one entry list per test (field use on a phone), summary table last */
+:root{
+  --bg:#F3F5F7; --surface:#FFFFFF; --ink:#15202B; --muted:#5B6874; --line:#DCE1E6;
+  --accent:#1F4FB0; --accent-soft:#E6EDFA; --pass:#137A4B; --pass-soft:#E3F3EA;
+  --fail:#B3261E; --fail-soft:#FBE7E5; --warn:#8A5A00; --warn-soft:#FFF3D6;
+  --f-num:"Barlow Condensed","Noto Sans TC",system-ui,sans-serif;
+  --f-body:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F151B; --surface:#17202A; --ink:#E6EBF0; --muted:#94A1AE; --line:#2A3542;
+  --accent:#7FA6F2; --accent-soft:#1D2B45; --pass:#5CCB91; --pass-soft:#16301F;
+  --fail:#F08A82; --fail-soft:#3A1C1A; --warn:#E9BE5C; --warn-soft:#352A12; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F151B; --surface:#17202A; --ink:#E6EBF0; --muted:#94A1AE; --line:#2A3542;
+  --accent:#7FA6F2; --accent-soft:#1D2B45; --pass:#5CCB91; --pass-soft:#16301F;
+  --fail:#F08A82; --fail-soft:#3A1C1A; --warn:#E9BE5C; --warn-soft:#352A12; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{max-width:980px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding-block:12px 8px}
+h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.02em;flex:1 1 auto;min-width:0}
+h1 small{display:block;font-size:12px;font-weight:400;color:var(--muted);letter-spacing:0}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+button,.btn{font:inherit;font-size:14px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+button:hover,.btn:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible,select:focus-visible,.btn:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--surface);font-weight:500}
+button.danger{color:var(--fail);border-color:var(--fail)}
+.btn input{position:absolute;width:1px;height:1px;opacity:0}
+.btn{position:relative}
+.classrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-bottom:8px}
+select{font:inherit;font-size:14px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);max-width:100%}
+.status{font-size:12px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:none;border-radius:0;padding:6px 14px;background:var(--surface);color:var(--muted);font-weight:500}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--surface)}
+.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-bottom:0}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;border:none;border-bottom:3px solid transparent;border-radius:0;background:none;padding:8px 10px 7px;color:var(--muted);font-size:14px}
+.tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}
+.tab .pct{font-family:var(--f-num);font-size:12px;margin-left:4px;color:var(--muted);font-weight:500}
+main{padding-block:16px 48px;display:flex;flex-direction:column;gap:14px}
+.banner{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 14px;font-size:14px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px}
+.panel h2{font-size:15px;margin:0 0 10px}
+.eventhead{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between}
+.eventhead h2{font-size:17px;margin:0;display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px}
+.pdfbtn{font-size:13px;font-weight:700;padding:4px 10px;border-color:var(--fail);color:var(--fail);letter-spacing:.04em}
+.pdfbtn:disabled{opacity:.5;cursor:wait}
+.maskopt{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:400;color:var(--muted);cursor:pointer}
+.eventhead p{margin:0;color:var(--muted);font-size:13px}
+.progress{font-family:var(--f-num);font-size:15px;color:var(--muted)}
+.list{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--line)}
+.row:first-child{border-top:none}
+.who{min-width:0;display:flex;align-items:center;gap:8px}
+.sid{font-family:var(--f-num);font-size:15px;color:var(--muted);min-width:2.6em;font-variant-numeric:tabular-nums}
+.name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sex{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--muted);flex:0 0 auto;position:relative;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.sex::after{content:"";position:absolute;inset:-9px -7px}
+.sex[data-g="F"]{color:var(--fail);border-color:currentColor}
+.sex[data-g="M"]{color:var(--accent);border-color:currentColor}
+.inputs{display:flex;align-items:center;gap:4px}
+.inputs input[type=text]{width:58px;font-family:var(--f-num);font-size:19px;text-align:center;padding:4px 4px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-variant-numeric:tabular-nums}
+.inputs input.wide{width:70px}
+.unit{font-size:12px;color:var(--muted)}
+.abs{display:flex;align-items:center;gap:3px;font-size:12px;color:var(--muted);margin-left:4px;cursor:pointer}
+.abs input{accent-color:var(--fail)}
+.score{font-family:var(--f-num);font-size:22px;font-weight:700;min-width:58px;text-align:center;border-radius:8px;padding:2px 6px;font-variant-numeric:tabular-nums;background:var(--bg);color:var(--muted)}
+.score.pass{background:var(--pass-soft);color:var(--pass)}
+.score.zero{background:var(--fail-soft);color:var(--fail)}
+.score.absent{background:var(--fail-soft);color:var(--fail);font-size:14px;font-family:var(--f-body)}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:14px;white-space:nowrap}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:center}
+th{font-size:12px;color:var(--muted);font-weight:500;background:var(--bg);position:sticky;top:0}
+th.grp{border-left:1px solid var(--line)}
+td.num{font-family:var(--f-num);font-size:16px;font-variant-numeric:tabular-nums}
+td.final{font-weight:700;color:var(--accent)}
+td.l{text-align:left}
+td.miss{color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.wt{display:grid;grid-template-columns:1fr auto;gap:8px 10px;align-items:center;font-size:14px}
+.wt input{width:64px;font-family:var(--f-num);font-size:17px;text-align:center;padding:3px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.wt .sum{font-size:13px;color:var(--muted);grid-column:1/-1}
+.wt .sum.bad{color:var(--fail);font-weight:700}
+.rules{font-size:13px;color:var(--muted);margin:0;padding-left:18px}
+.rules b{color:var(--ink);font-weight:500}
+.formula{font-family:var(--f-num);font-size:16px;background:var(--accent-soft);color:var(--accent);border-radius:8px;padding:8px 12px;margin:0 0 10px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:10px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+.empty{color:var(--muted);text-align:center;padding:24px}
+@media (max-width:520px){
+  .row{grid-template-columns:minmax(0,1fr) auto;row-gap:6px}
+  .row .inputs{grid-column:1/2}
+  .row .score{grid-row:1/3;grid-column:2}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="bar">
+      <h1>體能成績登錄<small>一上 立定跳遠・1200m／一下 折返跑・3000m｜自動換算・匯出成績繳交表</small></h1>
+      <div class="actions">
+        <label class="btn" for="fileIn" title="選學校下載的成績繳交表 .xlsx">匯入名單<input type="file" id="fileIn" accept=".xlsx"></label>
+        <button id="bkOut" title="把所有班級與成績存成 .json 備份檔">備份</button>
+        <label class="btn" for="bkIn" title="選 .json 備份檔把資料匯回來">還原<input type="file" id="bkIn" accept=".json,application/json"></label>
+        <button class="primary" id="exportBtn">匯出成績單</button>
+      </div>
+    </div>
+    <div class="classrow">
+      <div class="seg" role="group" aria-label="學期"><button data-sem="1" aria-pressed="true">一上</button><button data-sem="2" aria-pressed="false">一下</button></div>
+      <select id="classSel" aria-label="選擇班級"></select>
+      <span class="status" id="status"></span>
+    </div>
+    <nav class="tabs" id="tabs" role="tablist"></nav>
+  </div>
+</header>
+
+<main class="wrap" id="main"></main>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+/* ---------- 換算規則（115學年度第1學期 專45期 基礎體能訓練 換算表） ---------- */
+const STD = {
+  jump:    { M: 200, F: 145 },          // 一上 立定跳遠 60 分門檻（公分）
+  run:     { M: 5*60+50, F: 6*60+20 },  // 一上 1200m 60 分門檻（秒）
+  shuttle: { M: 30, F: 27 },            // 一下 6公尺90秒折返跑 60 分門檻（次）
+  run3000: { M: 15*60, F: 17*60 }       // 一下 3000m 60 分門檻（秒）
+};
+// 折返跑：每多 1 次加 3 分（最高 100）；少 1 次 59 分，之後每少 1 次減 3 分（最低 0）——依換算表
+function shuttleScore(n, g){
+  if (n === null || n === undefined || n === '' || isNaN(n)) return null;
+  const d = Math.floor(Number(n)) - STD.shuttle[g==='F'?'F':'M'];
+  if (d >= 0) return Math.min(100, 60 + 3*d);
+  if (d === -1) return 59;
+  return Math.max(0, 60 - 3*(-d - 1));
+}
+// 3000m：每快 5 秒加 1 分、每慢 5 秒減 1 分，未滿 5 秒按比例；0–100
+function run3000Score(min, sec, g){
+  if ((min === '' || min == null) && (sec === '' || sec == null)) return null;
+  const t = (Number(min)||0)*60 + (Number(sec)||0);
+  if (!t) return null;
+  const lim = STD.run3000[g==='F'?'F':'M'];
+  return Math.max(0, Math.min(100, round2(60 + (lim - t)/5)));
+}
+// 立定跳遠：門檻=60；每 +1cm 加 2 分至 80（+10cm）；之後每 +1cm 加 1 分，最高 100；未達門檻 0 分
+function jumpScore(cm, g){
+  if (cm === null || cm === undefined || cm === '' || isNaN(cm)) return null;
+  const d = Math.floor(Number(cm)) - STD.jump[g==='F'?'F':'M'];
+  if (d < 0) return 0;
+  if (d <= 10) return 60 + 2*d;
+  return Math.min(100, 80 + (d - 10));
+}
+// 1200m：門檻=60；每快 2 秒加 1 分，未滿 2 秒按比例，最高 100；慢於門檻 0 分
+function runScore(min, sec, g){
+  if ((min === '' || min == null) && (sec === '' || sec == null)) return null;
+  const t = (Number(min)||0)*60 + (Number(sec)||0);
+  if (!t) return null;
+  const lim = STD.run[g==='F'?'F':'M'];
+  if (t > lim) return 0;
+  return Math.min(100, round2(60 + (lim - t)/2));
+}
+function round2(x){ return Math.round(x*100)/100; }
+function num(v){ return (v===''||v==null||isNaN(Number(v))) ? null : Number(v); }
+
+// 各學期配分：rJump = 項目A（跳遠／折返跑）平時、rRun = 項目B（1200m／3000m）平時、rTeach = 老師評定
+const DEFAULT_WS = {
+  '1': { mid:30, fin:40, reg:30, rJump:40, rRun:40, rTeach:20 },
+  '2': { mid:30, fin:40, reg:30, rJump:30, rRun:40, rTeach:30 },
+};
+function mergeWs(src){ const o={}; for (const k in DEFAULT_WS) o[k]={...DEFAULT_WS[k], ...((src&&src[k])||{})}; return o; }
+
+const SCORERS = {
+  jump:    (r,f,g)=>jumpScore(r[f], g),
+  shuttle: (r,f,g)=>shuttleScore(r[f], g),
+  run:     (r,f,g)=>runScore(r[f+'M'], r[f+'S'], g),
+  run3000: (r,f,g)=>run3000Score(r[f+'M'], r[f+'S'], g),
+};
+const TIMED = { run:1, run3000:1 };
+const SEMS = {
+  '1': { label:'一上',
+    A:{ name:'立定跳遠', kind:'jump', unit:'公分', hint:'輸入公分，男 200／女 145 公分為 60 分' },
+    B:{ name:'1200m', kind:'run', mlen:1, hint:'輸入分、秒，男 5分50秒／女 6分20秒為 60 分' },
+    f:{ ap:'jp', am:'jm', bp:'rp', bf:'rf', t:'t', absM:'am', absF:'af' } },
+  '2': { label:'一下',
+    A:{ name:'折返跑', kind:'shuttle', unit:'次', hint:'輸入 90 秒內折返次數，男 30／女 27 次為 60 分' },
+    B:{ name:'3000m', kind:'run3000', mlen:2, hint:'輸入分、秒，男 15分00秒／女 17分00秒為 60 分' },
+    f:{ ap:'sp', am:'sm', bp:'lp', bf:'lf', t:'t2', absM:'am2', absF:'af2' } },
+};
+const GRADE_FIELDS = ['g','jp','jm','rpM','rpS','rfM','rfS','t','am','af','sp','sm','lpM','lpS','lfM','lfS','t2','am2','af2'];
+function events(sem){
+  const S = SEMS[sem || state.sem], f = S.f;
+  return [
+    { ...S.A, id:f.ap, label:S.A.name+'・平時', part:'平時成績' },
+    { ...S.A, id:f.am, label:S.A.name+'・期中', part:'期中成績', absent:f.absM },
+    { ...S.B, id:f.bp, label:S.B.name+'・平時', part:'平時成績' },
+    { ...S.B, id:f.bf, label:S.B.name+'・期末', part:'期末成績', absent:f.absF },
+    { id:f.t, label:'平時表現', kind:'teach', unit:'分', part:'平時成績' },
+    { id:'sum', label:'總表', kind:'sum' },
+    { id:'set', label:'配分設定', kind:'set' },
+  ];
+}
+function curEvent(){ const ev = events(); return ev.find(e=>e.id===state.tab) || ev[0]; }
+function evScore(ev, r){
+  if (ev.kind==='teach') return num(r[ev.id]);
+  if (ev.absent && r[ev.absent]) return 0;
+  return SCORERS[ev.kind](r, ev.id, r.g);
+}
+
+function calc(r, w, sem){
+  const S = SEMS[sem || state.sem], f = S.f;
+  const ap = SCORERS[S.A.kind](r, f.ap, r.g);
+  const am = r[f.absM] ? 0 : SCORERS[S.A.kind](r, f.am, r.g);
+  const bp = SCORERS[S.B.kind](r, f.bp, r.g);
+  const bf = r[f.absF] ? 0 : SCORERS[S.B.kind](r, f.bf, r.g);
+  const t  = num(r[f.t]);
+  const reg = (ap!=null && bp!=null && t!=null) ? round2((ap*w.rJump + bp*w.rRun + t*w.rTeach)/100) : null;
+  const sem_ = (am!=null && bf!=null && reg!=null) ? round2((am*w.mid + bf*w.fin + reg*w.reg)/100) : null;
+  return { ap, am, bp, bf, t, reg, sem: sem_, absM: !!r[f.absM], absF: !!r[f.absF] };
+}
+
+/* ---------- 狀態 ---------- */
+const DEMO_KEY = 'demo';
+const state = {
+  classes: {},       // key -> {key, dept, cls, fileName, orig(b64|null), rows:[], updatedAt}
+  current: DEMO_KEY,
+  tab: 'jp',
+  sem: '1',
+  ws: mergeWs(null),
+  get w(){ return this.ws[this.sem]; },
+  store: null,       // 'db' | 'local' | null
+};
+const demoNames = ['王小明','林大同','陳美玲','張志豪','李雅婷','黃建宏','吳佳穎','劉冠宇'];
+state.classes[DEMO_KEY] = {
+  key: DEMO_KEY, demo:true, dept:'範例科', cls:'範例班（示範用）', fileName:null, orig:null,
+  rows: demoNames.map((n,i)=>({ dept:'範例科', cls:'範例班', reg:'115000000'+(i+1), sid:String(101+i), name:n, xr:i+2,
+    g: [2,4,6].includes(i)?'F':'M',
+    jp: [214,203,158,199,147,226,150,208][i], jm: [218,200,160,205,152,230,149,''][i],
+    rpM:[5,5,6,6,5,4,6,5][i], rpS:[20,48,5,2,58,40,18,''][i], rfM:'', rfS:'', t:[85,80,88,75,90,92,'',''][i], am:false, af:false,
+    sp:[34,30,29,28,27,40,25,''][i], sm:[35,31,30,'',28,42,'',''][i], lpM:[13,14,16,15,17,12,18,''][i], lpS:[30,50,40,20,5,45,10,''][i], t2:[86,82,'','','','','',''][i] }))
+};
+
+/* ---------- 儲存（db 私人區 → localStorage 後備） ---------- */
+let db=null, uid=null, saveTimer=null, dirty=new Set();
+const LS='pe-grades-v1';
+function lsGet(){ try{ return JSON.parse(localStorage.getItem(LS)||'null'); }catch(e){ return null; } }
+function lsSet(obj){ try{ localStorage.setItem(LS, JSON.stringify(obj)); return true; }catch(e){ return false; } }
+function setStatus(t){ document.getElementById('status').textContent = t; }
+
+function storableClasses(){ const o={}; for(const k in state.classes) if(!state.classes[k].demo) o[k]=state.classes[k]; return o; }
+
+function scheduleSave(key){
+  const c = state.classes[key];
+  if (!c || c.demo){ setStatus('範例資料不會儲存'); return; }
+  c.updatedAt = Date.now(); dirty.add(key);
+  setStatus('儲存中…');
+  clearTimeout(saveTimer); saveTimer = setTimeout(flush, 700);
+}
+async function flush(){
+  const keys=[...dirty]; dirty.clear();
+  lsSet({ classes: storableClasses(), ws: state.ws, current: state.current, sem: state.sem });
+  if (db && uid){
+    try{
+      for (const k of keys){
+        if (k==='__settings') await db.collection('data/users/'+uid).doc('settings').set({ ws: state.ws });
+        else if (state.classes[k]) await db.collection('data/users/'+uid).doc(k).set(state.classes[k]);
+      }
+      setStatus('已儲存到你的帳號 ' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));
+    }catch(e){ setStatus('雲端儲存失敗，已暫存在此瀏覽器（'+(e&&e.code||'錯誤')+'）'); }
+  } else {
+    setStatus(state.store==='local' ? '已儲存在這台裝置' : '已暫存');
+  }
+}
+async function removeClass(key){
+  delete state.classes[key];
+  lsSet({ classes: storableClasses(), ws: state.ws });
+  if (db && uid){ try{ await db.collection('data/users/'+uid).doc(key).delete(); }catch(e){} }
+}
+
+async function initStore(){
+  const local = lsGet();
+  if (local){
+    Object.assign(state.classes, local.classes||{});
+    if (local.ws) state.ws = mergeWs(local.ws);
+    else if (local.w) state.ws['1'] = { ...DEFAULT_WS['1'], ...local.w };
+    if (local.sem && SEMS[local.sem]) { state.sem = local.sem; state.tab = events()[0].id; }
+    state.store='local';
+  }
+  pickDefaultClass(local && local.current);
+  renderAll();
+  try{
+    if (!window.claude || !window.claude.use) { setStatus(local?'已載入這台裝置的資料':'尚未匯入班級'); return; }
+    const [d, u] = await Promise.all([claude.use('db'), claude.use('user')]);
+    if (!d || !u){ setStatus(local?'已載入這台裝置的資料':'資料存在這台裝置'); return; }
+    const id = await u.id();
+    if (!id){ setStatus('已載入這台裝置的資料'); return; }
+    db=d; uid=id; state.store='db';
+    const snap = await db.collection('data/users/'+uid).get();
+    let remoteCount=0;
+    snap.docs.forEach(doc=>{
+      const v = doc.data(); if(!v) return;
+      if (doc.id==='settings'){ if(v.ws) state.ws=mergeWs(v.ws); else if(v.w) state.ws['1']={...DEFAULT_WS['1'],...v.w}; return; }
+      const mine = state.classes[doc.id];
+      if (!mine || (v.updatedAt||0) >= (mine.updatedAt||0)) state.classes[doc.id]=v;
+      remoteCount++;
+    });
+    // 本機有、雲端沒有 → 上傳
+    for (const k in storableClasses()){ if(!snap.docs.some(x=>x.id===k)) dirty.add(k); }
+    if (dirty.size) flush();
+    pickDefaultClass(state.current);
+    renderAll();
+    setStatus(remoteCount ? '已從你的帳號載入 '+remoteCount+' 個班級' : '資料會保存在你的帳號（僅你看得到）');
+  }catch(e){ setStatus('使用此瀏覽器儲存'); }
+}
+function pickDefaultClass(pref){
+  const real = Object.keys(storableClasses());
+  if (pref && state.classes[pref] && !(pref===DEMO_KEY && real.length)) state.current = pref;
+  else if (!state.classes[state.current] || (state.current===DEMO_KEY && real.length)) state.current = real[0] || DEMO_KEY;
+}
+
+/* ---------- 畫面 ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function cur(){ return state.classes[state.current]; }
+function fmt(v){ return v==null ? '—' : (Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/,'')); }
+
+function renderAll(){ renderClassSel(); renderTabs(); renderMain(); }
+
+function renderClassSel(){
+  const sel = $('#classSel');
+  const keys = Object.keys(state.classes).sort((a,b)=> (a===DEMO_KEY)-(b===DEMO_KEY) || state.classes[a].cls.localeCompare(state.classes[b].cls,'zh-Hant'));
+  sel.innerHTML = keys.map(k=>`<option value="${esc(k)}" ${k===state.current?'selected':''}>${esc(state.classes[k].cls)}（${state.classes[k].rows.length}人）</option>`).join('');
+}
+function filled(ev, r){
+  if (ev.kind==='sum' || ev.kind==='set') return false;
+  if (ev.kind==='teach') return num(r[ev.id])!=null;
+  if (ev.absent && r[ev.absent]) return true;
+  return num(r[TIMED[ev.kind] ? ev.id+'M' : ev.id])!=null;
+}
+function renderTabs(){
+  const c = cur();
+  document.querySelectorAll('[data-sem]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.sem===state.sem));
+  $('#tabs').innerHTML = events().map(ev=>{
+    let extra='';
+    if (ev.kind!=='sum' && ev.kind!=='set'){
+      const n = c.rows.filter(r=>filled(ev,r)).length;
+      extra = `<span class="pct">${n}/${c.rows.length}</span>`;
+    }
+    return `<button class="tab" role="tab" data-tab="${ev.id}" aria-selected="${state.tab===ev.id}">${ev.label}${extra}</button>`;
+  }).join('');
+}
+function updateTabCount(evId){
+  const ev = events().find(e=>e.id===evId); const c=cur();
+  const el = document.querySelector(`.tab[data-tab="${evId}"] .pct`);
+  if (el) el.textContent = c.rows.filter(r=>filled(ev,r)).length + '/' + c.rows.length;
+  const p = document.getElementById('prog');
+  if (p) p.textContent = '已登錄 ' + c.rows.filter(r=>filled(ev,r)).length + ' / ' + c.rows.length + ' 人';
+}
+
+function sexSwitch(i, g){
+  const f = g==='F';
+  return `<button type="button" class="sex" data-sex="${i}" data-g="${f?'F':'M'}" title="點一下切換性別">${f?'女':'男'}</button>`;
+}
+function scorePill(v, absent){
+  if (absent) return `<span class="score absent">缺考</span>`;
+  if (v==null) return `<span class="score">—</span>`;
+  return `<span class="score ${v===0?'zero':'pass'}">${fmt(v)}</span>`;
+}
+
+function renderMain(){
+  const c = cur(), ev = curEvent(), m = $('#main');
+  state.tab = ev.id;
+  let html = '';
+  if (c.demo) html += `<div class="banner">目前顯示的是<b>範例資料</b>（不會儲存）。按「匯入名單」選學校下載的成績繳交表 .xlsx 就能開始登錄。</div>`;
+  if (ev.kind==='sum') html += renderSummary(c);
+  else if (ev.kind==='set') html += renderSettings(c);
+  else html += renderEntry(c, ev);
+  m.innerHTML = html;
+}
+
+function renderEntry(c, ev){
+  const hint = ev.kind==='teach' ? '輸入老師評定的平時表現分數（0–100）' : ev.hint;
+  const n = c.rows.filter(r=>filled(ev,r)).length;
+  let h = `<div class="eventhead"><div><h2>${SEMS[state.sem].label}｜${ev.label}${pdfTools(ev)}</h2><p>${hint}・計入「${ev.part}」</p></div><span class="progress" id="prog">已登錄 ${n} / ${c.rows.length} 人</span></div>`;
+  h += `<div class="list">`;
+  c.rows.forEach((r,i)=>{
+    let inputs='', ab = ev.absent ? !!r[ev.absent] : false;
+    if (TIMED[ev.kind]){
+      inputs = `<input type="text" inputmode="numeric" id="in-${ev.id}M-${i}" data-i="${i}" data-f="${ev.id}M" data-mlen="${ev.mlen}" value="${esc(r[ev.id+'M'])}" aria-label="${esc(r.name)} 分" ${ab?'disabled':''}><span class="unit">分</span>
+                <input type="text" inputmode="decimal" id="in-${ev.id}S-${i}" data-i="${i}" data-f="${ev.id}S" value="${esc(r[ev.id+'S'])}" aria-label="${esc(r.name)} 秒" ${ab?'disabled':''}><span class="unit">秒</span>`;
+    } else {
+      inputs = `<input type="text" inputmode="decimal" class="wide" id="in-${ev.id}-${i}" data-i="${i}" data-f="${ev.id}" ${ev.kind==='teach'?'data-teach="1"':''} value="${esc(r[ev.id])}" aria-label="${esc(r.name)} ${ev.unit}" ${ab?'disabled':''}><span class="unit">${ev.unit}</span>`;
+    }
+    const sc = evScore(ev, r);
+    if (ev.absent) inputs += `<label class="abs"><input type="checkbox" id="ab-${ev.id}-${i}" data-i="${i}" data-ab="${ev.absent}" ${ab?'checked':''}>缺考</label>`;
+    h += `<div class="row" data-row="${i}">
+      <div class="who"><span class="sid">${esc(r.sid)}</span><span class="name">${esc(r.name)}</span>
+        ${sexSwitch(i, r.g)}</div>
+      <div class="inputs">${inputs}</div>
+      <div id="sc-${i}">${ev.kind==='teach' ? scorePill(sc==null?null:sc,false).replace(' pass','') : scorePill(sc, ab)}</div>
+    </div>`;
+  });
+  return h + `</div>`;
+}
+
+function renderSummary(c){
+  const w = state.w, S = SEMS[state.sem];
+  let done = 0;
+  let body = c.rows.map(r=>{
+    const s = calc(r, w); if (s.sem!=null) done++;
+    const td = v => `<td class="num ${v==null?'miss':''}">${fmt(v)}</td>`;
+    return `<tr><td class="num">${esc(r.sid)}</td><td class="l">${esc(r.name)}</td><td>${sexSwitch(c.rows.indexOf(r), r.g)}</td>
+      ${td(s.ap)}${td(s.bp)}${td(s.t)}<td class="num grp">${fmt(s.reg)}</td>
+      <td class="num">${s.absM?'缺考':fmt(s.am)}</td><td class="num">${s.absF?'缺考':fmt(s.bf)}</td><td class="num final">${fmt(s.sem)}</td></tr>`;
+  }).join('');
+  return `<div class="eventhead"><div><h2>${S.label}｜總表${pdfTools(curEvent())}</h2><p>學期 = 期中 ${w.mid}% + 期末 ${w.fin}% + 平時 ${w.reg}%；平時 = ${S.A.name}平時 ${w.rJump}% + ${S.B.name}平時 ${w.rRun}% + 表現 ${w.rTeach}%</p></div>
+    <span class="progress">學期成績完成 ${done} / ${c.rows.length} 人</span></div>
+    <div class="tablewrap"><table><thead><tr><th>學號</th><th>姓名</th><th>性別</th>
+    <th class="grp">${S.A.name}平時</th><th>${S.B.name}平時</th><th>表現</th><th class="grp">平時成績</th>
+    <th class="grp">期中<br>(${S.A.name})</th><th>期末<br>(${S.B.name})</th><th class="grp">學期成績</th></tr></thead><tbody>${body}</tbody></table></div>
+    <p class="status">尚未填完的項目顯示「—」，匯出時該格留白。缺考以 0 分計算，並在「缺考」欄標記 Y。</p>`;
+}
+
+function renderSettings(c){
+  const w=state.w, S=SEMS[state.sem];
+  const s1=w.mid+w.fin+w.reg, s2=w.rJump+w.rRun+w.rTeach;
+  const rules = state.sem==='1' ? `
+     <p class="formula">立定跳遠 男 200 / 女 145 公分 = 60 分</p>
+     <ul class="rules"><li>每多 1 公分加 2 分，到 <b>男 210／女 155 公分 = 80 分</b></li>
+       <li>之後每多 1 公分加 1 分，<b>男 230／女 175 公分 = 100 分</b></li>
+       <li>未達 60 分門檻以 0 分計；小數點公分無條件捨去</li></ul>
+     <p class="formula" style="margin-top:12px">1200m 男 5分50秒 / 女 6分20秒 = 60 分</p>
+     <ul class="rules"><li>每快 2 秒加 1 分，未滿 2 秒按比例（快 1 秒 = +0.5 分）</li>
+       <li><b>男 4分30秒／女 5分00秒 = 100 分</b>（最高）</li>
+       <li>慢於 60 分門檻以 0 分計</li></ul>` : `
+     <p class="formula">折返跑（6公尺 90 秒）男 30 / 女 27 次 = 60 分</p>
+     <ul class="rules"><li>每多 1 次加 3 分，<b>男 44／女 41 次 = 100 分</b>（最高）</li>
+       <li>少 1 次 59 分，之後每少 1 次減 3 分，最低 0 分（男 10／女 7 次 = 3 分）</li></ul>
+     <p class="formula" style="margin-top:12px">3000m 男 15分00秒 / 女 17分00秒 = 60 分</p>
+     <ul class="rules"><li>每快 5 秒加 1 分，<b>男 11分40秒／女 13分40秒 = 100 分</b>（最高）</li>
+       <li>每慢 5 秒減 1 分，<b>男 20分00秒／女 22分00秒 = 0 分</b></li>
+       <li>未滿 5 秒按比例核算（1 秒 = 0.2 分）</li></ul>`;
+  const inp=(k)=>`<input type="text" inputmode="decimal" id="w-${k}" data-w="${k}" value="${w[k]}">`;
+  return `<div class="grid2">
+   <div class="panel"><h2>${S.label}學期成績配分</h2><div class="wt">
+     <span>期中考（${S.A.name}期中測驗）</span><span>${inp('mid')} %</span>
+     <span>期末考（${S.B.name} 期末測驗）</span><span>${inp('fin')} %</span>
+     <span>平時成績</span><span>${inp('reg')} %</span>
+     <span class="sum ${s1!==100?'bad':''}" id="sum1">合計 ${s1}%${s1!==100?'，應為 100%':''}</span></div></div>
+   <div class="panel"><h2>${S.label}平時成績組成</h2><div class="wt">
+     <span>${S.A.name}平時測驗</span><span>${inp('rJump')} %</span>
+     <span>${S.B.name} 平時測驗</span><span>${inp('rRun')} %</span>
+     <span>老師評定平時表現</span><span>${inp('rTeach')} %</span>
+     <span class="sum ${s2!==100?'bad':''}" id="sum2">合計 ${s2}%${s2!==100?'，應為 100%':''}</span></div>
+     <div style="margin-top:10px"><button id="resetW">恢復預設</button></div></div>
+   <div class="panel"><h2>${S.label}換算標準</h2>${rules}</div>
+   <div class="panel"><h2>這個班級</h2>
+     <p class="status" style="margin:0 0 10px">${esc(c.dept)}・${esc(c.cls)}・${c.rows.length} 人${c.fileName?'<br>來源檔案：'+esc(c.fileName):''}</p>
+     <div class="confirm"><button data-allg="M">全班設為男生</button><button data-allg="F">全班設為女生</button></div>
+     ${c.demo?'':`<div class="confirm" style="margin-top:12px" id="delbox"><button class="danger" id="delAsk">刪除這個班級</button></div>`}
+   </div>
+   <div class="panel"><h2>資料備份・換裝置</h2>
+     <p class="status" style="margin:0">要把成績搬到另一台手機或電腦：先在這台按上方的「備份」存成 .json 檔，再到另一台按「還原」選那個檔案。同一班以較新的資料為準。</p>
+   </div></div>`;
+}
+
+/* ---------- 互動 ---------- */
+function toast(t){ const el=$('#toast'); el.textContent=t; el.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>el.hidden=true, 2600); }
+
+document.addEventListener('click', e=>{
+  const sb = e.target.closest('[data-sem]');
+  if (sb){ if (sb.dataset.sem!==state.sem){
+      const idx = events().findIndex(x=>x.id===state.tab);
+      state.sem = sb.dataset.sem; state.tab = events()[Math.max(0,idx)].id;
+      renderTabs(); renderMain(); lsSet({classes:storableClasses(), ws:state.ws, current:state.current, sem:state.sem});
+      toast('已切換到'+SEMS[state.sem].label+'：'+SEMS[state.sem].A.name+'・'+SEMS[state.sem].B.name); }
+    return; }
+  const tab = e.target.closest('.tab');
+  if (tab){ state.tab = tab.dataset.tab; renderTabs(); renderMain(); window.scrollTo({top:0}); return; }
+  const sx = e.target.closest('[data-sex]');
+  if (sx){ const i=+sx.dataset.sex, r=cur().rows[i];
+    r.g = r.g==='F' ? 'M' : 'F'; scheduleSave(state.current);
+    sx.dataset.g = r.g; sx.textContent = r.g==='F' ? '女' : '男';
+    if (curEvent().kind==='sum') renderMain(); else refreshRow(i);
+    return; }
+  const ag = e.target.closest('[data-allg]');
+  if (ag){ cur().rows.forEach(r=>r.g=ag.dataset.allg); scheduleSave(state.current); toast('已將全班設為'+(ag.dataset.allg==='F'?'女生':'男生')); return; }
+  if (e.target.id==='resetW'){ state.ws[state.sem]={...DEFAULT_WS[state.sem]}; dirty.add('__settings'); scheduleSaveSettings(); renderMain(); return; }
+  if (e.target.id==='delAsk'){ $('#delbox').innerHTML = `確定刪除「${esc(cur().cls)}」的所有成績？<button class="danger" id="delYes">刪除</button><button id="delNo">取消</button>`; return; }
+  if (e.target.id==='delNo'){ renderMain(); return; }
+  if (e.target.id==='delYes'){ const k=state.current; removeClass(k).then(()=>{ state.current=Object.keys(storableClasses())[0]||DEMO_KEY; renderAll(); toast('已刪除班級'); }); return; }
+});
+
+function scheduleSaveSettings(){
+  dirty.add('__settings'); setStatus('儲存中…');
+  clearTimeout(saveTimer); saveTimer=setTimeout(flush,700);
+}
+
+function refreshRow(i){
+  const ev = curEvent(), r = cur().rows[i], box = document.getElementById('sc-'+i);
+  if (!box) return;
+  const ab = ev.absent ? !!r[ev.absent] : false;
+  const sc = evScore(ev, r);
+  box.innerHTML = ev.kind==='teach' ? scorePill(sc,false).replace(' pass','') : scorePill(sc, ab);
+  updateTabCount(ev.id);
+}
+
+document.addEventListener('input', e=>{
+  const t=e.target;
+  if (t.dataset.f){
+    const i=+t.dataset.i; let v=t.value.trim().replace(/[^\d.]/g,'');
+    if (t.dataset.teach && num(v)>100) v='100';
+    if (v!==t.value) t.value=v;
+    cur().rows[i][t.dataset.f]=v; refreshRow(i); scheduleSave(state.current);
+    // 分鐘輸入完（1200m 1 位數、3000m 2 位數）自動跳到秒
+    const ml = +t.dataset.mlen;
+    if (ml && /^\d+$/.test(v) && v.length>=ml) { const nx=document.getElementById(t.id.replace(/M-/,'S-')); nx&&nx.focus(); nx&&nx.select(); }
+  } else if (t.dataset.w){
+    const v=num(t.value); state.w[t.dataset.w]= v==null?0:v;
+    const w=state.w, s1=w.mid+w.fin+w.reg, s2=w.rJump+w.rRun+w.rTeach;
+    const a=$('#sum1'), b=$('#sum2');
+    a.textContent='合計 '+s1+'%'+(s1!==100?'，應為 100%':''); a.className='sum'+(s1!==100?' bad':'');
+    b.textContent='合計 '+s2+'%'+(s2!==100?'，應為 100%':''); b.className='sum'+(s2!==100?' bad':'');
+    scheduleSaveSettings();
+  }
+});
+document.addEventListener('change', e=>{
+  const t=e.target;
+  if (t.dataset.ab){
+    const i=+t.dataset.i; cur().rows[i][t.dataset.ab]=t.checked;
+    t.closest('.row').querySelectorAll('input[type=text]').forEach(x=>x.disabled=t.checked);
+    refreshRow(i); scheduleSave(state.current);
+  }
+  if (t.id==='classSel'){ state.current=t.value; renderTabs(); renderMain(); lsSet({classes:storableClasses(), ws:state.ws, current:state.current, sem:state.sem}); }
+});
+// Enter：跳到下一位同學
+document.addEventListener('keydown', e=>{
+  if (e.key!=='Enter' || !e.target.dataset || !e.target.dataset.f) return;
+  e.preventDefault();
+  const all=[...document.querySelectorAll('.list input[type=text]:not([disabled])')];
+  const idx=all.indexOf(e.target);
+  let next = all[idx+1];
+  if (e.target.dataset.mlen) next = document.getElementById(e.target.id.replace(/M-/,'S-'));
+  if (next){ next.focus(); next.select && next.select(); next.scrollIntoView({block:'center', behavior:'smooth'}); }
+});
+
+/* ---------- 匯入 ---------- */
+const HEAD = ['科系','班級','學籍號碼','學號','姓名','期中成績','期中缺考','期末成績','期末缺考','平時成績','學期成績'];
+function b64(buf){ let s='', b=new Uint8Array(buf); for(let i=0;i<b.length;i+=0x8000) s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000)); return btoa(s); }
+function unb64(s){ const bin=atob(s), b=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b.buffer; }
+function keyFor(cls){ let h=0; for(const ch of cls) h=(h*31+ch.codePointAt(0))>>>0; return 'c_'+h.toString(36); }
+function cellText(c){ const v=c.value; if (v==null) return ''; if (typeof v==='object'){ if (v.richText) return v.richText.map(x=>x.text).join(''); if ('result' in v) return String(v.result??''); if (v.text) return String(v.text); } return String(v); }
+
+$('#fileIn').addEventListener('change', async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  if (!window.ExcelJS){ toast('Excel 元件沒有載入，請重新整理頁面再試'); return; }
+  try{
+    const buf=await f.arrayBuffer();
+    const wb=new ExcelJS.Workbook(); await wb.xlsx.load(buf.slice(0));
+    const ws=wb.worksheets[0]; const col={};
+    ws.getRow(1).eachCell((c,n)=>{ col[cellText(c).trim()]=n; });
+    if (!col['姓名'] || !col['學號']) { toast('找不到「學號」「姓名」欄位，請確認是學校的成績繳交表'); return; }
+    const rows=[];
+    for (let r=2; r<=ws.rowCount; r++){
+      const row=ws.getRow(r), g=k=> col[k]? cellText(row.getCell(col[k])).trim() : '';
+      if (!g('姓名')) continue;
+      rows.push({ dept:g('科系'), cls:g('班級'), reg:g('學籍號碼'), sid:g('學號'), name:g('姓名'), xr:r, g:'M' });
+    }
+    if (!rows.length){ toast('名單裡沒有學生資料'); return; }
+    const cls = rows[0].cls || f.name.replace(/\.xlsx$/i,''), key=keyFor(cls);
+    const old = state.classes[key];
+    let kept=0;
+    if (old && !old.demo){ // 重新匯入：保留已登錄的成績
+      const byReg=new Map(old.rows.map(x=>[x.reg||x.sid, x]));
+      rows.forEach(x=>{ const o=byReg.get(x.reg||x.sid); if(o){ for(const k of GRADE_FIELDS) if (o[k]!==undefined) x[k]=o[k]; kept++; } });
+    }
+    state.classes[key]={ key, dept:rows[0].dept, cls, fileName:f.name, orig:b64(buf), rows, updatedAt:Date.now() };
+    state.current=key; state.tab=events()[0].id;
+    scheduleSave(key); renderAll();
+    toast(old&&!old.demo ? `已更新 ${cls} 名單，保留 ${kept} 位同學的成績` : `已匯入 ${cls}，共 ${rows.length} 人。性別預設為男，女生請點「男」切換`);
+  }catch(err){ toast('讀取失敗：請選擇 .xlsx 成績繳交表'); }
+});
+
+/* ---------- 匯出 ---------- */
+let downloads=null;
+(async()=>{ try{ if(window.claude&&claude.use){ downloads=await claude.use('downloads'); } }catch(e){} })();
+
+$('#exportBtn').addEventListener('click', async ()=>{
+  const c=cur(), w=state.w;
+  if (!window.ExcelJS){ toast('Excel 元件沒有載入，請重新整理頁面再試'); return; }
+  if (w.mid+w.fin+w.reg!==100 || w.rJump+w.rRun+w.rTeach!==100){ toast('配分合計不是 100%，請先到「配分設定」修正'); return; }
+  try{
+    const wb=new ExcelJS.Workbook(); let ws, col={};
+    if (c.orig){
+      await wb.xlsx.load(unb64(c.orig)); ws=wb.worksheets[0];
+      ws.getRow(1).eachCell((cell,n)=>{ col[cellText(cell).trim()]=n; });
+    } else {
+      ws=wb.addWorksheet('Worksheet'); ws.columns=HEAD.map(h=>({width:12}));
+      ws.addRow(HEAD); HEAD.forEach((h,i)=>col[h]=i+1);
+      c.rows.forEach((r,i)=>{ r.xr=i+2; ws.addRow([r.dept,r.cls,r.reg,r.sid,r.name]); });
+      ws.eachRow(row=>{ for(let n=1;n<=11;n++){ const cell=row.getCell(n); cell.border={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}}; cell.alignment={horizontal:'center',vertical:'middle',wrapText:true}; if([6,8,10,11].includes(n)&&row.number>1) cell.numFmt='0.00'; } });
+    }
+    const set=(r,k,v)=>{ if(col[k]) ws.getRow(r).getCell(col[k]).value=v; };
+    let full=0;
+    c.rows.forEach(r=>{
+      const s=calc(r,w);
+      set(r.xr,'期中成績', s.am==null?null:s.am);
+      set(r.xr,'期中缺考', s.absM?'Y':null);
+      set(r.xr,'期末成績', s.bf==null?null:s.bf);
+      set(r.xr,'期末缺考', s.absF?'Y':null);
+      set(r.xr,'平時成績', s.reg==null?null:s.reg);
+      set(r.xr,'學期成績', s.sem==null?'-':s.sem);
+      if (s.sem!=null) full++;
+    });
+    const out=await wb.xlsx.writeBuffer();
+    const name=(c.fileName||((c.cls||'成績')+'_成績繳交表.xlsx'));
+    await saveFile(name, new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    toast((full===c.rows.length ? '已匯出全班' : `已匯出（${full}/${c.rows.length} 人有完整學期成績，其餘留白）`) + SEMS[state.sem].label + '成績');
+  }catch(err){
+    if (err && err.code==='declined') return;
+    toast('匯出失敗：'+(err&&err.message||'請再試一次'));
+  }
+});
+
+/* ---------- 公布成績 PDF ---------- */
+let maskNames = false;
+try{ maskNames = localStorage.getItem('pe-mask')==='1'; }catch(e){}
+function pdfTools(ev){
+  return `<button class="pdfbtn" data-pdf="${ev.id}" title="產生可公布給學生看的成績 PDF">PDF</button>
+    <label class="maskopt"><input type="checkbox" id="maskName" ${maskNames?'checked':''}>遮蔽姓名</label>`;
+}
+function maskName(n){
+  n=String(n||''); const a=[...n];
+  if (a.length<=1) return n;
+  if (a.length===2) return a[0]+'○';
+  return a[0]+'○'.repeat(a.length-2)+a[a.length-1];
+}
+function mmss(m,s){ if (num(m)==null && num(s)==null) return null; const t=(Number(m)||0)*60+(Number(s)||0); const mm=Math.floor(t/60), ss=t-mm*60; return mm+':'+(ss<10?'0':'')+(Number.isInteger(ss)?ss:ss.toFixed(1)); }
+function rawText(ev, r){
+  if (ev.absent && r[ev.absent]) return '缺考';
+  if (TIMED[ev.kind]){ const v=mmss(r[ev.id+'M'], r[ev.id+'S']); return v==null?'—':v; }
+  const v=num(r[ev.id]); return v==null?'—':(v+' '+ev.unit);
+}
+function pdfTable(ev, c){
+  const S=SEMS[state.sem], w=state.w, nm=r=>maskNames?maskName(r.name):r.name, sx=r=>r.g==='F'?'女':'男';
+  if (ev.kind==='sum'){
+    return { head:['學號','姓名','性別',S.A.name+'平時',S.B.name+'平時','平時表現','平時成績','期中','期末','學期成績'],
+      widths:[1,1.3,.7,1.1,1.1,1.1,1.1,1,1,1.2], scoreCol:9,
+      rows:c.rows.map(r=>{ const s=calc(r,w); return { cells:[r.sid,nm(r),sx(r),fmt(s.ap),fmt(s.bp),fmt(s.t),fmt(s.reg),s.absM?'缺考':fmt(s.am),s.absF?'缺考':fmt(s.bf),fmt(s.sem)], score:s.sem }; }) };
+  }
+  if (ev.kind==='teach'){
+    return { head:['學號','姓名','平時表現成績'], widths:[1,1.4,1.4], scoreCol:2,
+      rows:c.rows.map(r=>{ const v=num(r[ev.id]); return { cells:[r.sid,nm(r),fmt(v)], score:v }; }) };
+  }
+  const lab = TIMED[ev.kind] ? '時間（分:秒）' : (ev.kind==='shuttle' ? '次數' : '距離');
+  return { head:['學號','姓名','性別',lab,'換算成績'], widths:[1,1.4,.7,1.4,1.2], scoreCol:4,
+    rows:c.rows.map(r=>{ const sc=evScore(ev,r); const filledRow=filled(ev,r); return { cells:[r.sid,nm(r),sx(r),rawText(ev,r), filledRow?fmt(sc):'—'], score: filledRow?sc:null, absent: !!(ev.absent&&r[ev.absent]) }; }) };
+}
+async function makePdf(ev){
+  if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('PDF 元件沒有載入，請連上網路後重新整理');
+  try{ await document.fonts.ready; }catch(e){}
+  const c=cur(), S=SEMS[state.sem], T=pdfTable(ev,c);
+  const W=1240, H=1754, M=80, ff='"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
+  const rowH=36, headH=44, titleH=170, footH=70;
+  const perPage=Math.floor((H-M-titleH-headH-footH-M/2)/rowH);
+  const pages=Math.max(1, Math.ceil(T.rows.length/perPage));
+  const scored=T.rows.filter(x=>x.score!=null), vals=scored.map(x=>x.score);
+  const avg=vals.length? round2(vals.reduce((a,b)=>a+b,0)/vals.length):null;
+  const pass=vals.filter(v=>v>=60).length;
+  const title = `${c.cls}　${S.label}｜${ev.kind==='sum'?'學期成績總表':ev.label+' 測驗成績'}`;
+  const d=new Date(), dateStr=`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+  const tw=W-2*M, tot=T.widths.reduce((a,b)=>a+b,0), xs=[M]; T.widths.forEach(wd=>xs.push(xs[xs.length-1]+tw*wd/tot));
+  const pdf=new window.jspdf.jsPDF({unit:'mm', format:'a4', orientation:'portrait', compress:true});
+  for (let p=0;p<pages;p++){
+    const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const g=cv.getContext('2d');
+    g.fillStyle='#FFFFFF'; g.fillRect(0,0,W,H); g.textBaseline='middle';
+    g.fillStyle='#15202B'; g.font=`700 38px ${ff}`; g.textAlign='left'; g.fillText(title, M, M+24);
+    g.font=`400 22px ${ff}`; g.fillStyle='#5B6874';
+    let sub = ev.kind==='sum' ? `學期 = 期中 ${state.w.mid}% + 期末 ${state.w.fin}% + 平時 ${state.w.reg}%` : (ev.kind==='teach' ? '老師評定之平時表現' : ev.hint.replace(/^輸入[^，]*，/,'60 分標準：'));
+    g.fillText(`${c.dept||''}　公布日期 ${dateStr}`, M, M+72);
+    g.fillText(sub, M, M+104);
+    if (pages>1){ g.textAlign='right'; g.fillText(`第 ${p+1} / ${pages} 頁`, W-M, M+72); }
+    let y=M+titleH;
+    g.fillStyle='#1F4FB0'; g.fillRect(M,y,tw,headH);
+    g.fillStyle='#FFFFFF'; g.font=`700 22px ${ff}`; g.textAlign='center';
+    T.head.forEach((h,i)=>g.fillText(h,(xs[i]+xs[i+1])/2,y+headH/2+1));
+    y+=headH;
+    const slice=T.rows.slice(p*perPage,(p+1)*perPage);
+    slice.forEach((row,k)=>{
+      if (k%2===1){ g.fillStyle='#F3F5F7'; g.fillRect(M,y,tw,rowH); }
+      row.cells.forEach((v,i)=>{
+        const isScore=i===T.scoreCol;
+        g.font = isScore ? `700 24px ${ff}` : `400 22px ${ff}`;
+        g.fillStyle = isScore ? (row.score==null?'#8A96A3':(row.score>=60?'#137A4B':'#B3261E')) : (v==='缺考'?'#B3261E':'#15202B');
+        g.fillText(String(v),(xs[i]+xs[i+1])/2,y+rowH/2+1);
+      });
+      g.strokeStyle='#DCE1E6'; g.lineWidth=1; g.beginPath(); g.moveTo(M,y+rowH); g.lineTo(M+tw,y+rowH); g.stroke();
+      y+=rowH;
+    });
+    g.strokeStyle='#9AA6B2'; g.lineWidth=1.5; g.strokeRect(M,M+titleH,tw,y-(M+titleH));
+    if (p===pages-1){
+      y+=34; g.textAlign='left'; g.fillStyle='#15202B'; g.font=`500 22px ${ff}`;
+      g.fillText(`全班 ${T.rows.length} 人・已有成績 ${vals.length} 人・平均 ${avg==null?'—':fmt(avg)} 分・及格（60 分以上）${pass} 人${vals.length?'（'+Math.round(pass/vals.length*100)+'%）':''}・最高 ${vals.length?fmt(Math.max(...vals)):'—'} 分`, M, y);
+      g.fillStyle='#5B6874'; g.font=`400 18px ${ff}`; g.fillText('成績如有疑問，請於公布後向任課老師反映。', M, y+34);
+    }
+    if (p>0) pdf.addPage();
+    pdf.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',0,0,210,297);
+  }
+  const name=`${c.cls}_${S.label}_${ev.kind==='sum'?'學期成績總表':ev.label.replace('・','')}.pdf`.replace(/[\\/:*?"<>|]/g,'_');
+  await saveFile(name, pdf.output('blob'));
+}
+document.addEventListener('click', async e=>{
+  const b=e.target.closest('[data-pdf]'); if(!b) return;
+  const ev=events().find(x=>x.id===b.dataset.pdf); if(!ev) return;
+  b.disabled=true; const t=b.textContent; b.textContent='產生中…';
+  try{ await makePdf(ev); toast('已產生 PDF'); }
+  catch(err){ if(!(err&&err.code==='declined')) toast('PDF 產生失敗：'+(err&&err.message||'請再試一次')); }
+  finally{ b.disabled=false; b.textContent=t; }
+});
+document.addEventListener('change', e=>{
+  if (e.target.id!=='maskName') return;
+  maskNames=e.target.checked; try{ localStorage.setItem('pe-mask', maskNames?'1':'0'); }catch(_){}
+  toast(maskNames?'PDF 會把姓名中間字遮蔽，例如 王○明':'PDF 顯示完整姓名');
+});
+
+/* ---------- 存檔（Claude 內用 downloads；獨立 App 用分享或下載） ---------- */
+async function saveFile(name, blob){
+  if (downloads){ await downloads.save({ filename:name, data:blob }); return; }
+  const file = (typeof File==='function') ? new File([blob], name, {type:blob.type}) : null;
+  if (file && navigator.canShare && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) && navigator.canShare({files:[file]})){
+    try{ await navigator.share({ files:[file], title:name }); return; }
+    catch(e){ if (e && e.name==='AbortError') throw {code:'declined'}; }
+  }
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+}
+
+/* ---------- 備份／還原（手機⇄電腦搬資料） ---------- */
+document.addEventListener('click', async e=>{
+  if (e.target.id!=='bkOut') return;
+  const data = { app:'pe-grades', version:1, exportedAt:new Date().toISOString(), classes:storableClasses(), ws:state.ws };
+  if (!Object.keys(data.classes).length){ toast('還沒有班級資料可以備份'); return; }
+  const d=new Date(), p=n=>String(n).padStart(2,'0');
+  try{
+    await saveFile(`體能成績備份_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.json`,
+      new Blob([JSON.stringify(data)], {type:'application/json'}));
+    toast('已產生備份檔，請存到雲端或傳給自己');
+  }catch(err){ if (!(err && err.code==='declined')) toast('備份失敗，請再試一次'); }
+});
+document.addEventListener('change', async e=>{
+  if (e.target.id!=='bkIn') return;
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{
+    const data = JSON.parse(await f.text());
+    if (!data || data.app!=='pe-grades' || !data.classes) throw 0;
+    let added=0, updated=0, kept=0;
+    for (const k in data.classes){
+      const inc=data.classes[k], mine=state.classes[k];
+      if (!mine){ state.classes[k]=inc; added++; dirty.add(k); }
+      else if ((inc.updatedAt||0) > (mine.updatedAt||0)){ state.classes[k]=inc; updated++; dirty.add(k); }
+      else kept++;
+    }
+    if (data.ws){ state.ws = mergeWs(data.ws); dirty.add('__settings'); }
+    flush(); pickDefaultClass(state.current); renderAll();
+    toast(`已還原：新增 ${added} 班、更新 ${updated} 班` + (kept?`，${kept} 班這台較新已保留`:''));
+  }catch(err){ toast('這不是體能成績的備份檔'); }
+});
+
+initStore();
+</script>
+
+<script>
+try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}
+if ('serviceWorker' in navigator && location.protocol==='https:') {
+  window.addEventListener('load', ()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>

@@ -48,6 +48,11 @@ button.primary{background:var(--accent);border-color:var(--accent);color:var(--s
 button.danger{color:var(--fail);border-color:var(--fail)}
 .btn input{position:absolute;width:1px;height:1px;opacity:0}
 .btn{position:relative}
+.btn.mini{font-size:12px;padding:4px 9px;border-radius:7px}
+.clsgrp{display:flex;align-items:center;gap:8px;flex:0 1 auto;min-width:0}
+#classSel{flex:0 1 auto;min-width:0;text-overflow:ellipsis}
+.clsgrp .btn.mini{flex:0 0 auto}
+.classrow .status{flex:1 1 140px}
 .classrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-bottom:8px}
 select{font:inherit;font-size:14px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);max-width:100%}
 .status{font-size:12px;color:var(--muted)}
@@ -125,7 +130,6 @@ td.miss{color:var(--muted)}
     <div class="bar">
       <h1>體能成績登錄<small>一上 立定跳遠・1200m／一下 折返跑・3000m｜自動換算・匯出成績繳交表</small></h1>
       <div class="actions">
-        <label class="btn" for="fileIn" title="選學校下載的成績繳交表 .xlsx">匯入名單<input type="file" id="fileIn" accept=".xlsx"></label>
         <button id="bkOut" title="把所有班級與成績存成 .json 備份檔">備份</button>
         <label class="btn" for="bkIn" title="選 .json 備份檔把資料匯回來">還原<input type="file" id="bkIn" accept=".json,application/json"></label>
         <button class="primary" id="exportBtn">匯出成績單</button>
@@ -133,7 +137,8 @@ td.miss{color:var(--muted)}
     </div>
     <div class="classrow">
       <div class="seg" role="group" aria-label="學期"><button data-sem="1" aria-pressed="true">一上</button><button data-sem="2" aria-pressed="false">一下</button></div>
-      <select id="classSel" aria-label="選擇班級"></select>
+      <span class="clsgrp"><select id="classSel" aria-label="選擇班級"></select>
+      <label class="btn mini" for="fileIn" title="匯入名冊：選學校下載的成績繳交表 .xlsx">名冊<input type="file" id="fileIn" accept=".xlsx"></label></span>
       <span class="status" id="status"></span>
     </div>
     <nav class="tabs" id="tabs" role="tablist"></nav>
@@ -397,7 +402,7 @@ function renderMain(){
   const c = cur(), ev = curEvent(), m = $('#main');
   state.tab = ev.id;
   let html = '';
-  if (c.demo) html += `<div class="banner">目前顯示的是<b>範例資料</b>（不會儲存）。按「匯入名單」選學校下載的成績繳交表 .xlsx 就能開始登錄。</div>`;
+  if (c.demo) html += `<div class="banner">目前顯示的是<b>範例資料</b>（不會儲存）。按班級右邊的「名冊」選學校下載的成績繳交表 .xlsx 就能開始登錄。</div>`;
   if (ev.kind==='sum') html += renderSummary(c);
   else if (ev.kind==='set') html += renderSettings(c);
   else html += renderEntry(c, ev);

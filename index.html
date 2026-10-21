@@ -85,6 +85,11 @@ main{padding-block:16px 48px;display:flex;flex-direction:column;gap:14px}
 .lrow input.nt{font-size:14px}
 .logstats{font-size:13px;color:var(--muted)}
 @media (max-width:520px){ .logform{grid-template-columns:1fr} .lrow{grid-template-columns:minmax(0,1fr) 64px} .lrow .nt{grid-column:1/-1} .lrow.hd .hnt{display:none} }
+.startbox{display:flex;flex-direction:column;gap:10px;align-items:flex-start;padding:22px}
+.startbox h2{font-size:18px;margin:0}
+.startbox p{margin:0;color:var(--muted);max-width:60ch}
+.startbox .btn{margin-top:4px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface);font-weight:500}
 .pdfbtn{font-size:13px;font-weight:700;padding:4px 10px;border-color:var(--fail);color:var(--fail);letter-spacing:.04em}
 .pdfbtn:disabled{opacity:.5;cursor:wait}
 .maskopt{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:400;color:var(--muted);cursor:pointer}
@@ -278,15 +283,8 @@ const state = {
   get w(){ return this.ws[this.sem]; },
   store: null,       // 'db' | 'local' | null
 };
-const demoNames = ['王小明','林大同','陳美玲','張志豪','李雅婷','黃建宏','吳佳穎','劉冠宇'];
-state.classes[DEMO_KEY] = {
-  key: DEMO_KEY, demo:true, dept:'範例科', cls:'範例班（示範用）', fileName:null, orig:null,
-  rows: demoNames.map((n,i)=>({ dept:'範例科', cls:'範例班', reg:'115000000'+(i+1), sid:String(101+i), name:n, xr:i+2,
-    g: [2,4,6].includes(i)?'F':'M',
-    jp: [214,203,158,199,147,226,150,208][i], jm: [218,200,160,205,152,230,149,''][i],
-    rpM:[5,5,6,6,5,4,6,5][i], rpS:[20,48,5,2,58,40,18,''][i], rfM:'', rfS:'', t:[85,80,88,75,90,92,'',''][i], am:false, af:false,
-    sp:[34,30,29,28,27,40,25,''][i], sm:[35,31,30,'',28,42,'',''][i], lpM:[13,14,16,15,17,12,18,''][i], lpS:[30,50,40,20,5,45,10,''][i], t2:[86,82,'','','','','',''][i] }))
-};
+// 尚未匯入任何班級時使用的空白占位（不顯示、不儲存）
+state.classes[DEMO_KEY] = { key: DEMO_KEY, demo:true, dept:'', cls:'尚未匯入班級', fileName:null, orig:null, rows: [] };
 
 /* ---------- 儲存（db 私人區 → localStorage 後備） ---------- */
 let db=null, uid=null, saveTimer=null, dirty=new Set();
@@ -384,7 +382,8 @@ function renderAll(){ renderClassSel(); renderTabs(); renderMain(); }
 
 function renderClassSel(){
   const sel = $('#classSel');
-  const keys = Object.keys(state.classes).sort((a,b)=> (a===DEMO_KEY)-(b===DEMO_KEY) || state.classes[a].cls.localeCompare(state.classes[b].cls,'zh-Hant'));
+  let keys = Object.keys(storableClasses()).sort((a,b)=> state.classes[a].cls.localeCompare(state.classes[b].cls,'zh-Hant'));
+  if (!keys.length){ sel.innerHTML = '<option value="demo">尚未匯入班級</option>'; return; }
   sel.innerHTML = keys.map(k=>`<option value="${esc(k)}" ${k===state.current?'selected':''}>${esc(state.classes[k].cls)}（${state.classes[k].rows.length}人）</option>`).join('');
 }
 function filled(ev, r){
@@ -398,7 +397,7 @@ function renderTabs(){
   document.querySelectorAll('[data-sem]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.sem===state.sem));
   $('#tabs').innerHTML = events().map(ev=>{
     let extra='';
-    if (ev.kind!=='sum' && ev.kind!=='set' && ev.kind!=='log'){
+    if (!c.demo && ev.kind!=='sum' && ev.kind!=='set' && ev.kind!=='log'){
       const n = c.rows.filter(r=>filled(ev,r)).length;
       extra = `<span class="pct">${n}/${c.rows.length}</span>`;
     }
@@ -427,7 +426,13 @@ function renderMain(){
   const c = cur(), ev = curEvent(), m = $('#main');
   state.tab = ev.id;
   let html = '';
-  if (c.demo) html += `<div class="banner">目前顯示的是<b>範例資料</b>（不會儲存）。按班級右邊的「名冊」選學校下載的成績繳交表 .xlsx 就能開始登錄。</div>`;
+  if (c.demo && ev.kind!=='set'){
+    m.innerHTML = `<div class="panel startbox"><h2>還沒有班級名冊</h2>
+      <p>按上方班級選單右邊的「名冊」，選學校下載的成績繳交表（.xlsx），就會匯入整班學生，開始登錄成績和上課紀錄。</p>
+      <p>換了新手機或電腦？按上方的「還原」選之前的備份檔（.json），資料就會回來。</p>
+      <label class="btn primary" for="fileIn2">匯入名冊<input type="file" id="fileIn2" accept=".xlsx"></label></div>`;
+    return;
+  }
   if (ev.kind==='sum') html += renderSummary(c);
   else if (ev.kind==='set') html += renderSettings(c);
   else if (ev.kind==='log') html += renderLog(c);
@@ -513,7 +518,7 @@ function renderSettings(c){
    <div class="panel"><h2>${S.label}換算標準</h2>${rules}</div>
    <div class="panel"><h2>這個班級</h2>
      <p class="status" style="margin:0 0 10px">${esc(c.dept)}・${esc(c.cls)}・${c.rows.length} 人${c.fileName?'<br>來源檔案：'+esc(c.fileName):''}</p>
-     <div class="confirm"><button data-allg="M">全班設為男生</button><button data-allg="F">全班設為女生</button></div>
+     ${c.demo?'<p class="status" style="margin:0">尚未匯入班級。</p>':'<div class="confirm"><button data-allg="M">全班設為男生</button><button data-allg="F">全班設為女生</button></div>'}
      ${c.demo?'':`<div class="confirm" style="margin-top:12px" id="delbox"><button class="danger" id="delAsk">刪除這個班級</button></div>`}
    </div>
    <div class="panel"><h2>資料備份・換裝置</h2>
@@ -608,7 +613,9 @@ function unb64(s){ const bin=atob(s), b=new Uint8Array(bin.length); for(let i=0;
 function keyFor(cls){ let h=0; for(const ch of cls) h=(h*31+ch.codePointAt(0))>>>0; return 'c_'+h.toString(36); }
 function cellText(c){ const v=c.value; if (v==null) return ''; if (typeof v==='object'){ if (v.richText) return v.richText.map(x=>x.text).join(''); if ('result' in v) return String(v.result??''); if (v.text) return String(v.text); } return String(v); }
 
-$('#fileIn').addEventListener('change', async e=>{
+document.addEventListener('change', e=>{ if (e.target.id==='fileIn2') importRoster(e); });
+$('#fileIn').addEventListener('change', e=>importRoster(e));
+async function importRoster(e){
   const f=e.target.files[0]; e.target.value=''; if(!f) return;
   if (!window.ExcelJS){ toast('Excel 元件沒有載入，請重新整理頁面再試'); return; }
   try{
@@ -636,7 +643,7 @@ $('#fileIn').addEventListener('change', async e=>{
     scheduleSave(key); renderAll();
     toast(old&&!old.demo ? `已更新 ${cls} 名單，保留 ${kept} 位同學的成績` : `已匯入 ${cls}，共 ${rows.length} 人。性別預設為男，女生請點「男」切換`);
   }catch(err){ toast('讀取失敗：請選擇 .xlsx 成績繳交表'); }
-});
+}
 
 /* ---------- 匯出 ---------- */
 let downloads=null;
@@ -644,6 +651,7 @@ let downloads=null;
 
 $('#exportBtn').addEventListener('click', async ()=>{
   const c=cur(), w=state.w;
+  if (c.demo){ toast('請先按「名冊」匯入班級名冊'); return; }
   if (!window.ExcelJS){ toast('Excel 元件沒有載入，請重新整理頁面再試'); return; }
   if (w.mid+w.fin+w.reg!==100 || w.rJump+w.rRun+w.rTeach!==100){ toast('配分合計不是 100%，請先到「配分設定」修正'); return; }
   try{
@@ -778,13 +786,6 @@ document.addEventListener('keydown', e=>{
   const i=+e.target.dataset.i, nx=document.getElementById(`ls-${e.target.dataset.ln}-${i+1}`);
   if (nx){ nx.focus(); nx.select&&nx.select(); nx.scrollIntoView({block:'center',behavior:'smooth'}); }
 });
-// 範例班的示範紀錄
-(function(){
-  const id='l_demo_1';
-  state.lessons[id]={ id, cls:DEMO_KEY, sem:'1', date:todayStr(), topic:'1200m 配速練習 3 趟（每趟 400m）\n立定跳遠擺臂與落地緩衝教學',
-    quiz:'1 分鐘仰臥起坐', createdAt:1, updatedAt:1,
-    rec:{ '1150000001':{s:'45',n:'認真投入'}, '1150000002':{s:'38',n:'體力待加強'}, '1150000003':{s:'41',n:'進步很多'}, '1150000004':{n:'請假'}, '1150000005':{s:'36',n:''} } };
-})();
 
 /* ---------- 公布成績 PDF ---------- */
 let maskNames = false;

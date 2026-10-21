@@ -236,12 +236,12 @@ const GRADE_FIELDS = ['g','jp','jm','rpM','rpS','rfM','rfS','t','am','af','sp','
 function events(sem){
   const S = SEMS[sem || state.sem], f = S.f;
   return [
+    { id:'log', label:'上課紀錄', kind:'log' },
     { ...S.A, id:f.ap, label:S.A.name+'・平時', part:'平時成績' },
     { ...S.A, id:f.am, label:S.A.name+'・期中', part:'期中成績', absent:f.absM },
     { ...S.B, id:f.bp, label:S.B.name+'・平時', part:'平時成績' },
     { ...S.B, id:f.bf, label:S.B.name+'・期末', part:'期末成績', absent:f.absF },
     { id:f.t, label:'平時表現', kind:'teach', unit:'分', part:'平時成績' },
-    { id:'log', label:'上課紀錄', kind:'log' },
     { id:'sum', label:'總表', kind:'sum' },
     { id:'set', label:'配分設定', kind:'set' },
   ];
@@ -270,7 +270,7 @@ const DEMO_KEY = 'demo';
 const state = {
   classes: {},       // key -> {key, dept, cls, fileName, orig(b64|null), rows:[], updatedAt}
   current: DEMO_KEY,
-  tab: 'jp',
+  tab: 'log',
   sem: '1',
   lessons: {},      // id -> {id, cls, sem, date, topic, quiz, rec:{rowKey:{s,n}}, createdAt, updatedAt}
   lessonId: null,

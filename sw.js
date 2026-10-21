@@ -1,5 +1,5 @@
 // 離線快取：App 本體先用快取、背景更新；Excel 元件與字型第一次上線時存起來
-const CACHE = 'pe-grades-v4';
+const CACHE = 'pe-grades-v5';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'favicon.png',
   'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'];

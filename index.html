@@ -700,7 +700,7 @@ function lessonLabel(l, i, n){
 }
 function renderLog(c){
   const S=SEMS[state.sem], ls=classLessons(c), l=curLesson(c);
-  let h = `<div class="eventhead"><div><h2>${S.label}｜上課紀錄</h2><p>記錄每次上課的進度、隨堂測驗成績與每位同學的學習狀況</p></div>
+  let h = `<div class="eventhead"><div><h2>${S.label}｜上課紀錄${l?`<button class="pdfbtn" id="lsPdf" title="把這次上課紀錄匯出成 PDF">PDF</button><button class="pdfbtn" id="lsPdfAll" title="把這個班級本學期所有上課紀錄匯出成一份 PDF">全學期 PDF</button><label class="maskopt"><input type="checkbox" id="maskName" ${maskNames?'checked':''}>遮蔽姓名</label>`:''}</h2><p>記錄每次上課的進度、隨堂測驗成績與每位同學的學習狀況</p></div>
     <button class="primary" id="lsNew">＋ 新增上課紀錄</button></div>`;
   if (!l){
     return h + `<div class="panel empty">這個班級的${S.label}還沒有上課紀錄。按「＋ 新增上課紀錄」開始記錄今天的課。</div>`;
@@ -885,6 +885,98 @@ document.addEventListener('change', e=>{
   if (e.target.id!=='maskName') return;
   maskNames=e.target.checked; try{ localStorage.setItem('pe-mask', maskNames?'1':'0'); }catch(_){}
   toast(maskNames?'PDF 會把姓名中間字遮蔽，例如 王○明':'PDF 顯示完整姓名');
+});
+
+/* ---------- 上課紀錄 PDF ---------- */
+function wrapLines(g, text, maxW, maxLines){
+  const out=[]; String(text||'').split('\n').forEach(par=>{
+    let line=''; for (const ch of [...par]){ if (g.measureText(line+ch).width>maxW && line){ out.push(line); line=ch; } else line+=ch; }
+    out.push(line);
+  });
+  if (maxLines && out.length>maxLines){ const cut=out.slice(0,maxLines); let last=cut[maxLines-1]; while(last && g.measureText(last+'…').width>maxW) last=last.slice(0,-1); cut[maxLines-1]=last+'…'; return cut; }
+  return out;
+}
+async function makeLogPdf(lessons, fileLabel){
+  if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('PDF 元件沒有載入，請連上網路後重新整理');
+  try{ await document.fonts.ready; }catch(e){}
+  const c=cur(), S=SEMS[state.sem], all=classLessons(c).slice().reverse(); // 由舊到新編號
+  const W=1240, H=1754, M=80, ff='"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif', bottom=H-M;
+  const widths=[0.9,1.2,1.0,3.9], tw=W-2*M, tot=widths.reduce((a,b)=>a+b,0), xs=[M];
+  widths.forEach(wd=>xs.push(xs[xs.length-1]+tw*wd/tot));
+  const nm=r=>maskNames?maskName(r.name):r.name;
+  const pages=[]; let g=null, y=0;
+  const newPage=()=>{ const cv=document.createElement('canvas'); cv.width=W; cv.height=H; g=cv.getContext('2d');
+    g.fillStyle='#FFFFFF'; g.fillRect(0,0,W,H); g.textBaseline='middle'; pages.push(cv); y=M; };
+  const head=(cont)=>{ // 表頭
+    g.fillStyle='#1F4FB0'; g.fillRect(M,y,tw,42); g.fillStyle='#FFFFFF'; g.font=`700 21px ${ff}`; g.textAlign='center';
+    ['學號','姓名','測驗成績','學習狀況'].forEach((h,i)=>g.fillText(h,(xs[i]+xs[i+1])/2,y+22)); y+=42; };
+  for (const l of lessons){
+    newPage();
+    const no = all.findIndex(x=>x.id===l.id)+1;
+    const [yy,mm,dd]=(l.date||'').split('-');
+    g.textAlign='left'; g.fillStyle='#15202B'; g.font=`700 36px ${ff}`;
+    g.fillText(`${c.cls}　${S.label}｜上課紀錄`, M, y+22); y+=62;
+    g.font=`500 23px ${ff}`; g.fillStyle='#1F4FB0';
+    g.fillText(`上課日期 ${mm?`${yy}/${+mm}/${+dd}`:'未填'}　第 ${no} 次上課${c.dept?'　'+c.dept:''}`, M, y+12); y+=42;
+    // 進度與測驗
+    g.font=`400 22px ${ff}`;
+    const topicLines = wrapLines(g, l.topic||'（未填寫）', tw-150, 8);
+    const boxH = 24 + topicLines.length*32 + 18 + 32 + 20;
+    g.fillStyle='#F3F5F7'; g.fillRect(M,y,tw,boxH);
+    let yy2=y+24+14;
+    g.fillStyle='#5B6874'; g.font=`500 20px ${ff}`; g.fillText('進度內容', M+20, yy2);
+    g.fillStyle='#15202B'; g.font=`400 22px ${ff}`;
+    topicLines.forEach((t,i)=>g.fillText(t, M+130, yy2+i*32));
+    yy2 += topicLines.length*32 + 18;
+    g.fillStyle='#5B6874'; g.font=`500 20px ${ff}`; g.fillText('隨堂測驗', M+20, yy2);
+    g.fillStyle='#15202B'; g.font=`400 22px ${ff}`; g.fillText(l.quiz||'無', M+130, yy2);
+    y += boxH + 26;
+    head();
+    let k=0;
+    for (const r of c.rows){
+      const rec=l.rec[rowKey(r)]||{};
+      g.font=`400 21px ${ff}`;
+      const nl = wrapLines(g, (rec.n||'').trim()||'—', xs[4]-xs[3]-28, 3);
+      const rh = Math.max(36, 12 + nl.length*28);
+      if (y+rh > bottom-70){ newPage(); g.textAlign='left'; g.fillStyle='#5B6874'; g.font=`400 20px ${ff}`;
+        g.fillText(`${c.cls}　${S.label}｜上課紀錄　${mm?`${+mm}/${+dd}`:''}（續）`, M, y+12); y+=40; head(); k=0; }
+      if (k%2===1){ g.fillStyle='#F7F8FA'; g.fillRect(M,y,tw,rh); }
+      g.textAlign='center'; g.fillStyle='#15202B'; g.font=`400 21px ${ff}`;
+      g.fillText(String(r.sid), (xs[0]+xs[1])/2, y+rh/2+1);
+      g.fillText(nm(r), (xs[1]+xs[2])/2, y+rh/2+1);
+      const sc=num(rec.s); g.font=`700 23px ${ff}`; g.fillStyle = sc==null?'#8A96A3':'#1F4FB0';
+      g.fillText(sc==null?'—':fmt(sc), (xs[2]+xs[3])/2, y+rh/2+1);
+      g.textAlign='left'; g.font=`400 21px ${ff}`;
+      const bad=/缺席|曠課|遲到|早退|需加強|待加強|需修正/.test(rec.n||'');
+      g.fillStyle = (rec.n||'').trim() ? (bad?'#B3261E':'#15202B') : '#8A96A3';
+      const top = y + rh/2 - (nl.length-1)*14;
+      nl.forEach((t,i)=>g.fillText(t, xs[3]+14, top+i*28+1));
+      g.strokeStyle='#DCE1E6'; g.lineWidth=1; g.beginPath(); g.moveTo(M,y+rh); g.lineTo(M+tw,y+rh); g.stroke();
+      y+=rh; k++;
+    }
+    const scored=c.rows.map(r=>num((l.rec[rowKey(r)]||{}).s)).filter(v=>v!=null);
+    const noted=c.rows.filter(r=>((l.rec[rowKey(r)]||{}).n||'').trim()).length;
+    if (y+60 > bottom){ newPage(); }
+    y+=34; g.textAlign='left'; g.fillStyle='#15202B'; g.font=`500 21px ${ff}`;
+    g.fillText(`全班 ${c.rows.length} 人・測驗成績 ${scored.length} 人${scored.length?`・平均 ${fmt(round2(scored.reduce((a,b)=>a+b,0)/scored.length))}・最高 ${fmt(Math.max(...scored))}・最低 ${fmt(Math.min(...scored))}`:''}・有填學習狀況 ${noted} 人`, M, y);
+  }
+  const pdf=new window.jspdf.jsPDF({unit:'mm', format:'a4', orientation:'portrait', compress:true});
+  pages.forEach((cv,i)=>{ if(i>0) pdf.addPage(); const gg=cv.getContext('2d');
+    gg.textAlign='right'; gg.fillStyle='#8A96A3'; gg.font=`400 18px ${ff}`; gg.fillText(`${i+1} / ${pages.length}`, W-M, H-M/2);
+    pdf.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',0,0,210,297); });
+  const name=`${c.cls}_${S.label}_上課紀錄_${fileLabel}.pdf`.replace(/[\\/:*?"<>|]/g,'_');
+  await saveFile(name, pdf.output('blob'));
+}
+document.addEventListener('click', async e=>{
+  if (e.target.id!=='lsPdf' && e.target.id!=='lsPdfAll') return;
+  const c=cur(), b=e.target, l=curLesson(c);
+  if (!l) return;
+  const list = b.id==='lsPdf' ? [l] : classLessons(c).slice().reverse();
+  const label = b.id==='lsPdf' ? (l.date||'未填日期') : '全學期';
+  b.disabled=true; const t=b.textContent; b.textContent='產生中…';
+  try{ await makeLogPdf(list, label); toast(b.id==='lsPdf'?'已產生這次上課紀錄 PDF':`已產生全學期 ${list.length} 次上課紀錄 PDF`); }
+  catch(err){ if(!(err&&err.code==='declined')) toast('PDF 產生失敗：'+(err&&err.message||'請再試一次')); }
+  finally{ b.disabled=false; b.textContent=t; }
 });
 
 /* ---------- 存檔（Claude 內用 downloads；獨立 App 用分享或下載） ---------- */

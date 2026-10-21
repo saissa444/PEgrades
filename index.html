@@ -108,6 +108,10 @@ main{padding-block:16px 48px;display:flex;flex-direction:column;gap:14px}
 .inputs{display:flex;align-items:center;gap:4px}
 .inputs input[type=text]{width:58px;font-family:var(--f-num);font-size:19px;text-align:center;padding:4px 4px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-variant-numeric:tabular-nums}
 .inputs input.wide{width:70px}
+.inputs input.tin{width:84px;letter-spacing:.08em}
+.tprev{min-width:5.2em;font-variant-numeric:tabular-nums}
+.tprev.bad{color:var(--fail)}
+.inputs input.tin::placeholder{color:var(--muted);opacity:.55;letter-spacing:0;font-size:15px}
 .unit{font-size:12px;color:var(--muted)}
 .abs{display:flex;align-items:center;gap:3px;font-size:12px;color:var(--muted);margin-left:4px;cursor:pointer}
 .abs input{accent-color:var(--fail)}
@@ -230,11 +234,11 @@ const TIMED = { run:1, run3000:1 };
 const SEMS = {
   '1': { label:'一上',
     A:{ name:'立定跳遠', kind:'jump', unit:'公分', hint:'輸入公分，男 200／女 145 公分為 60 分' },
-    B:{ name:'1200m', kind:'run', mlen:1, hint:'輸入分、秒，男 5分50秒／女 6分20秒為 60 分' },
+    B:{ name:'1200m', kind:'run', mlen:1, hint:'輸入 4 位數時間，例如 0530 = 5分30秒；男 5分50秒／女 6分20秒為 60 分' },
     f:{ ap:'jp', am:'jm', bp:'rp', bf:'rf', t:'t', absM:'am', absF:'af' } },
   '2': { label:'一下',
     A:{ name:'折返跑', kind:'shuttle', unit:'次', hint:'輸入 90 秒內折返次數，男 30／女 27 次為 60 分' },
-    B:{ name:'3000m', kind:'run3000', mlen:2, hint:'輸入分、秒，男 15分00秒／女 17分00秒為 60 分' },
+    B:{ name:'3000m', kind:'run3000', mlen:2, hint:'輸入 4 位數時間，例如 1530 = 15分30秒；男 15分00秒／女 17分00秒為 60 分' },
     f:{ ap:'sp', am:'sm', bp:'lp', bf:'lf', t:'t2', absM:'am2', absF:'af2' } },
 };
 const GRADE_FIELDS = ['g','jp','jm','rpM','rpS','rfM','rfS','t','am','af','sp','sm','lpM','lpS','lfM','lfS','t2','am2','af2'];
@@ -412,6 +416,23 @@ function updateTabCount(evId){
   if (p) p.textContent = '已登錄 ' + c.rows.filter(r=>filled(ev,r)).length + ' / ' + c.rows.length + ' 人';
 }
 
+function timeDigits(m, s){
+  if (num(m)==null && num(s)==null) return '';
+  const mm=Math.floor(Number(m)||0), ss=Math.floor(Number(s)||0);
+  return String(mm).padStart(2,'0') + String(ss).padStart(2,'0');
+}
+function timePreview(m, s){
+  if (num(m)==null && num(s)==null) return '';
+  return `${Number(m)||0}分${String(Number(s)||0).padStart(2,'0')}秒`;
+}
+// 0530 → 5分30秒；530 → 5分30秒；1530 → 15分30秒
+function parseTime(raw){
+  const d=String(raw||'').replace(/\D/g,'').slice(0,4);
+  if (d.length<3) return { d, ok:false, empty:!d.length };
+  const m=parseInt(d.slice(0,-2),10), s=parseInt(d.slice(-2),10);
+  if (s>=60) return { d, ok:false, err:'秒數要小於 60' };
+  return { d, ok:true, m, s };
+}
 function sexSwitch(i, g){
   const f = g==='F';
   return `<button type="button" class="sex" data-sex="${i}" data-g="${f?'F':'M'}" title="點一下切換性別">${f?'女':'男'}</button>`;
@@ -448,8 +469,7 @@ function renderEntry(c, ev){
   c.rows.forEach((r,i)=>{
     let inputs='', ab = ev.absent ? !!r[ev.absent] : false;
     if (TIMED[ev.kind]){
-      inputs = `<input type="text" inputmode="numeric" id="in-${ev.id}M-${i}" data-i="${i}" data-f="${ev.id}M" data-mlen="${ev.mlen}" value="${esc(r[ev.id+'M'])}" aria-label="${esc(r.name)} 分" ${ab?'disabled':''}><span class="unit">分</span>
-                <input type="text" inputmode="decimal" id="in-${ev.id}S-${i}" data-i="${i}" data-f="${ev.id}S" value="${esc(r[ev.id+'S'])}" aria-label="${esc(r.name)} 秒" ${ab?'disabled':''}><span class="unit">秒</span>`;
+      inputs = `<input type="text" inputmode="numeric" class="tin" maxlength="4" id="in-${ev.id}T-${i}" data-i="${i}" data-t="${ev.id}" value="${esc(timeDigits(r[ev.id+'M'], r[ev.id+'S']))}" placeholder="分秒" aria-label="${esc(r.name)} 時間（4 位數，例如 0530）" autocomplete="off" ${ab?'disabled':''}><span class="unit tprev" id="tp-${i}">${esc(timePreview(r[ev.id+'M'], r[ev.id+'S']))}</span>`;
     } else {
       inputs = `<input type="text" inputmode="decimal" class="wide" id="in-${ev.id}-${i}" data-i="${i}" data-f="${ev.id}" ${ev.kind==='teach'?'data-teach="1"':''} value="${esc(r[ev.id])}" aria-label="${esc(r.name)} ${ev.unit}" ${ab?'disabled':''}><span class="unit">${ev.unit}</span>`;
     }
@@ -569,6 +589,16 @@ function refreshRow(i){
 
 document.addEventListener('input', e=>{
   const t=e.target;
+  if (t.dataset.t){
+    const i=+t.dataset.i, r=cur().rows[i], f=t.dataset.t, p=parseTime(t.value);
+    if (p.d!==t.value) t.value=p.d;
+    const pv=document.getElementById('tp-'+i);
+    if (p.ok){ r[f+'M']=String(p.m); r[f+'S']=String(p.s); if(pv){ pv.textContent=timePreview(p.m,p.s); pv.classList.remove('bad'); } }
+    else { r[f+'M']=''; r[f+'S']=''; if(pv){ pv.textContent=p.err||''; pv.classList.toggle('bad', !!p.err); } }
+    refreshRow(i); scheduleSave(state.current);
+    if (p.ok && p.d.length===4) focusNextTime(t);
+    return;
+  }
   if (t.dataset.f){
     const i=+t.dataset.i; let v=t.value.trim().replace(/[^\d.]/g,'');
     if (t.dataset.teach && num(v)>100) v='100';
@@ -597,6 +627,7 @@ document.addEventListener('change', e=>{
 });
 // Enter：跳到下一位同學
 document.addEventListener('keydown', e=>{
+  if (e.key==='Enter' && e.target.dataset && e.target.dataset.t){ e.preventDefault(); focusNextTime(e.target); return; }
   if (e.key!=='Enter' || !e.target.dataset || !e.target.dataset.f) return;
   e.preventDefault();
   const all=[...document.querySelectorAll('.list input[type=text]:not([disabled])')];
@@ -605,6 +636,11 @@ document.addEventListener('keydown', e=>{
   if (e.target.dataset.mlen) next = document.getElementById(e.target.id.replace(/M-/,'S-'));
   if (next){ next.focus(); next.select && next.select(); next.scrollIntoView({block:'center', behavior:'smooth'}); }
 });
+
+function focusNextTime(el){
+  const all=[...document.querySelectorAll('.list input.tin:not([disabled])')], nx=all[all.indexOf(el)+1];
+  if (nx){ nx.focus(); nx.select(); nx.scrollIntoView({block:'center', behavior:'smooth'}); } else el.blur();
+}
 
 /* ---------- 匯入 ---------- */
 const HEAD = ['科系','班級','學籍號碼','學號','姓名','期中成績','期中缺考','期末成績','期末缺考','平時成績','學期成績'];
